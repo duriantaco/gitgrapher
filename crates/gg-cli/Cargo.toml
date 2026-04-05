@@ -1,0 +1,23 @@
+[package]
+name = "gg-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure Rust CLI for GitGrapher"
+
+[[bin]]
+name = "gitgrapher"
+path = "src/main.rs"
+
+[dependencies]
+gg-core = { workspace = true }
+gg-pipeline = { workspace = true }
+gg-graph = { workspace = true }
+gg-search = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+dirs = "6"

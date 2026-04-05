@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GitGrapher - 3D Code Knowledge Graph</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000;color:#c9d1d9;overflow:hidden}
+#graph{width:100vw;height:100vh}
+#panel{position:fixed;top:0;right:0;width:360px;height:100vh;background:#0d1117;border-left:1px solid #21262d;overflow-y:auto;z-index:20;transform:translateX(100%);transition:transform .3s ease}
+#panel.open{transform:translateX(0)}
+#panel .close{position:absolute;top:12px;right:12px;background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer}
+#panel .header{padding:20px;border-bottom:1px solid #21262d}
+#panel .header h2{font-size:18px;color:#f0f6fc;margin-bottom:4px}
+#panel .header .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px}
+#panel .section{padding:16px 20px;border-bottom:1px solid #161b22}
+#panel .section h3{font-size:12px;text-transform:uppercase;color:#8b949e;margin-bottom:8px;letter-spacing:.5px}
+#panel .row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+#panel .row .k{color:#8b949e}
+#panel .row .v{color:#c9d1d9;text-align:right;max-width:200px;word-break:break-all}
+#panel .edge-item{font-size:12px;padding:4px 0;display:flex;align-items:center;gap:6px}
+#panel .edge-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+#panel .edge-item .ename{color:#58a6ff;cursor:pointer}
+#panel .edge-item .ename:hover{text-decoration:underline}
+#hud{position:fixed;top:16px;left:16px;z-index:10}
+#hud .card{background:rgba(13,17,23,.92);border:1px solid #21262d;border-radius:10px;padding:16px;backdrop-filter:blur(12px);margin-bottom:8px}
+#hud h1{font-size:16px;color:#f0f6fc;margin-bottom:2px;font-weight:600}
+#hud .stats{font-size:12px;color:#8b949e}
+#search{width:100%;padding:8px 12px;background:#161b22;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:13px;outline:none;margin-top:8px}
+#search:focus{border-color:#58a6ff}
+#search-results{margin-top:6px;max-height:200px;overflow-y:auto}
+.sr-item{padding:4px 8px;font-size:12px;color:#c9d1d9;cursor:pointer;border-radius:4px}
+.sr-item:hover{background:#161b22}
+.sr-item .sr-label{color:#8b949e;font-size:10px}
+#legend{position:fixed;bottom:16px;left:16px;z-index:10;background:rgba(13,17,23,.92);border:1px solid #21262d;border-radius:10px;padding:12px 16px;backdrop-filter:blur(12px)}
+#legend .row{display:inline-flex;align-items:center;margin-right:14px;font-size:11px;color:#8b949e}
+#legend .dot{width:8px;height:8px;border-radius:50%;margin-right:5px}
+#filters{position:fixed;top:16px;right:16px;z-index:10;background:rgba(13,17,23,.92);border:1px solid #21262d;border-radius:10px;padding:12px;backdrop-filter:blur(12px)}
+#filters label{display:block;font-size:11px;color:#8b949e;padding:2px 0;cursor:pointer}
+#filters input{margin-right:6px}
+#error{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1c1c1c;border:2px solid #f44;padding:20px;border-radius:8px;z-index:999;max-width:600px;font-size:13px;color:#faa}
+</style>
+</head>
+<body>
+<div id="error"></div>
+<div id="graph"></div>
+<div id="hud">
+  <div class="card">
+    <h1>GitGrapher</h1>
+    <div class="stats"><!--STATS--></div>
+    <input id="search" type="text" placeholder="Search symbols..." autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+</div>
+<div id="legend">
+  <span class="row"><span class="dot" style="background:#4FC3F7"></span>Class</span>
+  <span class="row"><span class="dot" style="background:#81C784"></span>Interface</span>
+  <span class="row"><span class="dot" style="background:#FFB74D"></span>Function</span>
+  <span class="row"><span class="dot" style="background:#FF8A65"></span>Method</span>
+  <span class="row"><span class="dot" style="background:#CE93D8"></span>Enum</span>
+  <span class="row"><span class="dot" style="background:#90A4AE"></span>Other</span>
+</div>
+<div id="filters">
+  <strong style="font-size:12px;color:#c9d1d9">Filter:</strong>
+  <label><input type="checkbox" data-group="1" checked>Classes</label>
+  <label><input type="checkbox" data-group="2" checked>Interfaces</label>
+  <label><input type="checkbox" data-group="3" checked>Functions</label>
+  <label><input type="checkbox" data-group="4" checked>Methods</label>
+  <label><input type="checkbox" data-group="5" checked>Enums</label>
+  <label><input type="checkbox" data-group="6">Properties</label>
+</div>
+<div id="panel">
+  <button class="close" onclick="closePanel()">&times;</button>
+  <div class="header"><h2 id="p-name"></h2><div id="p-badges"></div><div id="p-file" style="font-size:12px;color:#58a6ff;margin-top:6px"></div></div>
+  <div class="section"><h3>Details</h3><div id="p-details"></div></div>
+  <div class="section"><h3 id="p-in-title">Incoming</h3><div id="p-in"></div></div>
+  <div class="section"><h3 id="p-out-title">Outgoing</h3><div id="p-out"></div></div>
+</div>
+<script>/*3D_FORCE_GRAPH_LIB*/</script>
+<script>
+window.onerror = function(msg, url, line, col, err) {
+  var el = document.getElementById('error');
+  el.style.display = 'block';
+  el.innerHTML = '<b>Error:</b> ' + msg + '<br>Line: ' + line + '<br>' + (err ? err.stack : '');
+};
+
+var DATA = /*DATA_JSON*/null;
+
+try {
+  var NODES = DATA.nodes;
+  var LINKS = DATA.links;
+  var colors = {1:"#4FC3F7",2:"#81C784",3:"#FFB74D",4:"#FF8A65",5:"#CE93D8",6:"#78909C",7:"#B0BEC5",8:"#90A4AE"};
+  var edgeColors = {"CALLS":"#ef5350","IMPORTS":"#42A5F5","EXTENDS":"#66BB6A","IMPLEMENTS":"#66BB6A","HAS_METHOD":"#444","HAS_PROPERTY":"#444","OVERRIDES":"#AB47BC"};
+  var nodeMap = {};
+  NODES.forEach(function(n) { nodeMap[n.id] = n; });
+  var adj = {};
+  LINKS.forEach(function(l) {
+    var s = typeof l.source === 'object' ? l.source.id : l.source;
+    var t = typeof l.target === 'object' ? l.target.id : l.target;
+    if (!adj[s]) adj[s] = [];
+    if (!adj[t]) adj[t] = [];
+    adj[s].push({source: l.source, target: l.target, type: l.type, confidence: l.confidence, dir: 'out'});
+    adj[t].push({source: l.source, target: l.target, type: l.type, confidence: l.confidence, dir: 'in'});
+  });
+
+  var visibleGroups = {1:true, 2:true, 3:true, 4:true, 5:true, 6:true, 7:true, 8:true};
+  var selectedNode = null;
+
+  function getFilteredData() {
+    var vNodes = NODES.filter(function(n) { return visibleGroups[n.group]; });
+    var vIds = {};
+    vNodes.forEach(function(n) { vIds[n.id] = true; });
+    var vLinks = LINKS.filter(function(l) {
+      var s = typeof l.source === 'object' ? l.source.id : l.source;
+      var t = typeof l.target === 'object' ? l.target.id : l.target;
+      return vIds[s] && vIds[t];
+    });
+    return {nodes: vNodes, links: vLinks};
+  }
+
+  var graph = ForceGraph3D()(document.getElementById('graph'))
+    .graphData(getFilteredData())
+    .backgroundColor('#000011')
+    .nodeVal(function(n) { return Math.max(1, Math.sqrt(n.degree) * 1.5); })
+    .nodeColor(function(n) {
+      if (selectedNode && n.id === selectedNode.id) return '#ffffff';
+      return colors[n.group] || '#90A4AE';
+    })
+    .nodeOpacity(0.9)
+    .nodeLabel(function(n) {
+      return '<div style="background:#161b22;padding:8px 12px;border-radius:6px;border:1px solid #30363d;font-size:13px">'
+        + '<b style="color:' + (colors[n.group]||'#ccc') + '">' + n.name + '</b>'
+        + ' <span style="color:#8b949e">' + n.label + '</span>'
+        + '<br><span style="color:#58a6ff;font-size:11px">' + n.fileName + ':' + n.line + '</span>'
+        + '<br><span style="color:#8b949e;font-size:11px">' + n.degree + ' connections</span>'
+        + '</div>';
+    })
+    .linkColor(function(l) { return edgeColors[l.type] || '#222'; })
+    .linkOpacity(0.2)
+    .linkWidth(function(l) { return l.confidence > 0.8 ? 1.0 : 0.4; })
+    .linkDirectionalArrowLength(3)
+    .linkDirectionalArrowRelPos(1)
+    .onNodeClick(function(n) { selectNode(n); })
+    .onBackgroundClick(function() { closePanel(); })
+    .d3AlphaDecay(0.02)
+    .d3VelocityDecay(0.3)
+    .warmupTicks(80)
+    .cooldownTicks(200);
+
+  graph.d3Force('charge').strength(-30).distanceMax(300);
+  graph.d3Force('link').distance(function(l) {
+    var t = l.type || '';
+    return t === 'CALLS' ? 40 : t === 'EXTENDS' || t === 'IMPLEMENTS' ? 25 : 60;
+  });
+
+  // Search
+  var searchEl = document.getElementById('search');
+  var resultsEl = document.getElementById('search-results');
+  searchEl.addEventListener('input', function() {
+    var q = searchEl.value.toLowerCase();
+    resultsEl.innerHTML = '';
+    if (q.length < 2) return;
+    var hits = NODES.filter(function(n) { return n.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 12);
+    hits.forEach(function(n) {
+      var d = document.createElement('div');
+      d.className = 'sr-item';
+      d.innerHTML = n.name + ' <span class="sr-label">' + n.label + ' - ' + n.fileName + '</span>';
+      d.onclick = function() { focusNode(n); searchEl.value = n.name; resultsEl.innerHTML = ''; };
+      resultsEl.appendChild(d);
+    });
+  });
+
+  function focusNode(n) {
+    var dist = 150;
+    graph.cameraPosition({x: n.x + dist, y: n.y + dist/2, z: n.z + dist}, {x: n.x, y: n.y, z: n.z}, 1200);
+    setTimeout(function() { selectNode(n); }, 400);
+  }
+
+  function selectNode(n) {
+    selectedNode = n;
+    graph.nodeColor(graph.nodeColor());
+    openPanel(n);
+  }
+
+  function openPanel(n) {
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('p-name').textContent = n.name;
+    var bc = colors[n.group] || '#90A4AE';
+    var badges = '<span class="badge" style="background:' + bc + '30;color:' + bc + '">' + n.label + '</span>';
+    if (n.exported) badges += '<span class="badge" style="background:#238636;color:#3fb950">exported</span>';
+    if (n.isAsync) badges += '<span class="badge" style="background:#1f6feb30;color:#58a6ff">async</span>';
+    document.getElementById('p-badges').innerHTML = badges;
+    document.getElementById('p-file').textContent = n.fileName + ':' + n.line;
+
+    var det = '<div class="row"><span class="k">File</span><span class="v">' + n.file + '</span></div>';
+    det += '<div class="row"><span class="k">Folder</span><span class="v">' + (n.folder || '/') + '</span></div>';
+    det += '<div class="row"><span class="k">Connections</span><span class="v">' + n.degree + ' (' + n.inDeg + ' in, ' + n.outDeg + ' out)</span></div>';
+    if (n.returnType) det += '<div class="row"><span class="k">Returns</span><span class="v">' + n.returnType + '</span></div>';
+    document.getElementById('p-details').innerHTML = det;
+
+    var edges = adj[n.id] || [];
+    var inEdges = edges.filter(function(e) { return e.dir === 'in'; }).slice(0, 30);
+    var outEdges = edges.filter(function(e) { return e.dir === 'out'; }).slice(0, 30);
+    document.getElementById('p-in-title').textContent = 'Incoming (' + inEdges.length + ')';
+    document.getElementById('p-out-title').textContent = 'Outgoing (' + outEdges.length + ')';
+
+    document.getElementById('p-in').innerHTML = inEdges.map(function(e) {
+      var sid = typeof e.source === 'object' ? e.source.id : e.source;
+      var sn = nodeMap[sid];
+      var name = sn ? sn.name : '?';
+      var ec = edgeColors[e.type] || '#666';
+      return '<div class="edge-item"><span class="dot" style="background:' + ec + '"></span><span class="ename" onclick="focusByName(\'' + (sn ? sn.name : '') + '\')">' + name + '</span><span style="color:#484f58;font-size:10px">' + e.type + ' (' + e.confidence.toFixed(2) + ')</span></div>';
+    }).join('');
+
+    document.getElementById('p-out').innerHTML = outEdges.map(function(e) {
+      var tid = typeof e.target === 'object' ? e.target.id : e.target;
+      var tn = nodeMap[tid];
+      var name = tn ? tn.name : '?';
+      var ec = edgeColors[e.type] || '#666';
+      return '<div class="edge-item"><span class="dot" style="background:' + ec + '"></span><span class="ename" onclick="focusByName(\'' + (tn ? tn.name : '') + '\')">' + name + '</span><span style="color:#484f58;font-size:10px">' + e.type + ' (' + e.confidence.toFixed(2) + ')</span></div>';
+    }).join('');
+  }
+
+  function closePanel() {
+    document.getElementById('panel').classList.remove('open');
+    selectedNode = null;
+    graph.nodeColor(graph.nodeColor());
+  }
+
+  function focusByName(name) {
+    var n = NODES.find(function(x) { return x.name === name; });
+    if (n) focusNode(n);
+  }
+
+  // Filters
+  document.querySelectorAll('#filters input[data-group]').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      var g = parseInt(cb.dataset.group);
+      visibleGroups[g] = cb.checked;
+      graph.graphData(getFilteredData());
+    });
+  });
+
+} catch(e) {
+  document.getElementById('error').style.display = 'block';
+  document.getElementById('error').innerHTML = '<b>Init Error:</b> ' + e.message + '<br><pre>' + e.stack + '</pre>';
+}
+</script>
+</body>
+</html>

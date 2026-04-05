@@ -1,0 +1,12 @@
+[package]
+name = "gg-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core types and configuration for GitGrapher"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+smol_str = { workspace = true }
+thiserror = { workspace = true }

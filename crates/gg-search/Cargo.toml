@@ -1,0 +1,15 @@
+[package]
+name = "gg-search"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BM25 + hybrid search engine for GitGrapher"
+
+[dependencies]
+gg-core = { workspace = true }
+gg-graph = { workspace = true }
+smol_str = { workspace = true }
+serde = { workspace = true }
+tantivy = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

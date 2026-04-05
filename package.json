@@ -1,0 +1,7 @@
+{
+  "name": "gitgrapher-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}

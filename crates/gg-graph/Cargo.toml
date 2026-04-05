@@ -1,0 +1,16 @@
+[package]
+name = "gg-graph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Persistent graph storage engine for GitGrapher"
+
+[dependencies]
+gg-core = { workspace = true }
+smol_str = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+xxhash-rust = { workspace = true }

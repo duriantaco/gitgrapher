@@ -1,0 +1,30 @@
+[package]
+name = "gg-parse"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tree-sitter parsing engine for GitGrapher"
+
+[dependencies]
+gg-core = { workspace = true }
+tree-sitter = { workspace = true }
+smol_str = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+rayon = { workspace = true }
+streaming-iterator = "0.1"
+
+[dependencies.tree-sitter-typescript]
+version = "0.23"
+
+[dependencies.tree-sitter-javascript]
+version = "0.23"
+
+[dependencies.tree-sitter-python]
+version = "0.23"
+
+[dev-dependencies]
+tempfile = "3"
