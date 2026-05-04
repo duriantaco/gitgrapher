@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GitGrapher Diff</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#050816;color:#d7dde8;overflow:hidden}
+#graph{width:100vw;height:100vh}
+#hud{position:fixed;top:16px;left:16px;z-index:10;display:flex;gap:12px;align-items:flex-start}
+#hud .card,#legend,#filters,#panel{background:rgba(9,13,24,.92);border:1px solid #1f2940;border-radius:12px;backdrop-filter:blur(12px)}
+#hud .card{padding:16px;width:360px}
+#hud h1{font-size:16px;color:#f4f7fb;margin-bottom:4px}
+#hud .subtitle{font-size:12px;color:#8fa0be}
+#hud .stats{font-size:12px;color:#b7c3d9;margin-top:8px}
+#search{width:100%;padding:9px 12px;background:#111827;border:1px solid #2c3a56;border-radius:8px;color:#d7dde8;font-size:13px;outline:none;margin-top:10px}
+#search:focus{border-color:#6aa8ff}
+#search-results{margin-top:8px;max-height:200px;overflow-y:auto}
+.sr-item{padding:6px 8px;font-size:12px;color:#d7dde8;cursor:pointer;border-radius:6px}
+.sr-item:hover{background:#162036}
+.sr-item .meta{color:#8fa0be;font-size:10px}
+#legend{position:fixed;bottom:16px;left:16px;z-index:10;padding:12px 16px}
+#legend .row{display:inline-flex;align-items:center;margin-right:12px;font-size:11px;color:#9db0cf}
+#legend .dot{width:10px;height:10px;border-radius:50%;margin-right:6px}
+#filters{position:fixed;top:16px;right:16px;z-index:10;padding:14px;width:230px}
+#filters h3{font-size:12px;color:#f4f7fb;margin-bottom:8px}
+#filters .section{padding-top:8px;margin-top:8px;border-top:1px solid #18233a}
+#filters label{display:block;font-size:11px;color:#9db0cf;padding:3px 0;cursor:pointer}
+#filters input{margin-right:6px}
+#panel{position:fixed;top:16px;right:260px;width:380px;max-height:calc(100vh - 32px);overflow-y:auto;z-index:20;transform:translateX(420px);transition:transform .25s ease}
+#panel.open{transform:translateX(0)}
+#panel .header{padding:18px;border-bottom:1px solid #18233a}
+#panel .header h2{font-size:18px;color:#f4f7fb;margin-bottom:6px}
+#panel .close{position:absolute;top:10px;right:12px;background:none;border:none;color:#7f8faa;font-size:20px;cursor:pointer}
+#panel .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;margin-right:6px;margin-bottom:6px}
+#panel .section{padding:16px 18px;border-top:1px solid #18233a}
+#panel .section h3{font-size:11px;color:#8798b7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+#panel .row{display:flex;justify-content:space-between;gap:12px;font-size:12px;padding:4px 0}
+#panel .row .k{color:#8798b7}
+#panel .row .v{color:#d7dde8;text-align:right;word-break:break-word}
+#panel .edge-item{font-size:12px;padding:5px 0;display:flex;align-items:center;gap:6px}
+#panel .edge-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+#panel .edge-item .ename{color:#8fc4ff;cursor:pointer}
+#panel .edge-item .ename:hover{text-decoration:underline}
+#error{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#240c11;border:1px solid #b42318;padding:18px;border-radius:12px;z-index:999;max-width:700px;font-size:13px;color:#ffb4a8}
+</style>
+</head>
+<body>
+<div id="error"></div>
+<div id="graph"></div>
+<div id="hud">
+  <div class="card">
+    <h1><!--TITLE--></h1>
+    <div class="subtitle">3D diff view across files and symbols</div>
+    <div class="stats"><!--STATS--></div>
+    <input id="search" type="text" placeholder="Search changed files or symbols..." autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+</div>
+<div id="legend">
+  <span class="row"><span class="dot" style="background:#33cc7a"></span>Added</span>
+  <span class="row"><span class="dot" style="background:#ff6b6b"></span>Removed</span>
+  <span class="row"><span class="dot" style="background:#ffb84d"></span>Modified</span>
+  <span class="row"><span class="dot" style="background:#4aa8ff"></span>Moved</span>
+  <span class="row"><span class="dot" style="background:#45536f"></span>Unchanged</span>
+</div>
+<div id="filters">
+  <h3>Change Filter</h3>
+  <label><input type="checkbox" data-status="added" checked>Added</label>
+  <label><input type="checkbox" data-status="removed" checked>Removed</label>
+  <label><input type="checkbox" data-status="modified" checked>Modified</label>
+  <label><input type="checkbox" data-status="moved" checked>Moved</label>
+  <label><input type="checkbox" data-status="unchanged">Unchanged</label>
+  <div class="section">
+    <h3>Node Filter</h3>
+    <label><input type="checkbox" data-group="0" checked>Files</label>
+    <label><input type="checkbox" data-group="1" checked>Classes</label>
+    <label><input type="checkbox" data-group="2" checked>Interfaces</label>
+    <label><input type="checkbox" data-group="3" checked>Functions</label>
+    <label><input type="checkbox" data-group="4" checked>Methods</label>
+    <label><input type="checkbox" data-group="5" checked>Enums</label>
+    <label><input type="checkbox" data-group="6" checked>Properties</label>
+    <label><input type="checkbox" data-group="7" checked>Type Aliases</label>
+    <label><input type="checkbox" data-group="8" checked>Other</label>
+  </div>
+</div>
+<div id="panel">
+  <button class="close" onclick="closePanel()">&times;</button>
+  <div class="header">
+    <h2 id="p-name"></h2>
+    <div id="p-badges"></div>
+    <div id="p-file" style="font-size:12px;color:#8fc4ff"></div>
+  </div>
+  <div class="section"><h3>Details</h3><div id="p-details"></div></div>
+  <div class="section"><h3 id="p-in-title">Incoming</h3><div id="p-in"></div></div>
+  <div class="section"><h3 id="p-out-title">Outgoing</h3><div id="p-out"></div></div>
+</div>
+<script>/*3D_FORCE_GRAPH_LIB*/</script>
+<script>
+window.onerror = function(msg, url, line, col, err) {
+  var el = document.getElementById('error');
+  el.style.display = 'block';
+  el.innerHTML = '<b>Error:</b> ' + msg + '<br>Line: ' + line + '<br>' + (err ? err.stack : '');
+};
+
+var DATA = /*DATA_JSON*/null;
+
+try {
+  var NODES = DATA.nodes || [];
+  var LINKS = DATA.links || [];
+  var nodeMap = {};
+  var adj = {};
+  var statusColors = {
+    added: '#33cc7a',
+    removed: '#ff6b6b',
+    modified: '#ffb84d',
+    moved: '#4aa8ff',
+    unchanged: '#45536f'
+  };
+  var groupColors = {
+    0: '#6f86a8',
+    1: '#4FC3F7',
+    2: '#81C784',
+    3: '#FFB74D',
+    4: '#FF8A65',
+    5: '#CE93D8',
+    6: '#78909C',
+    7: '#B0BEC5',
+    8: '#90A4AE'
+  };
+  var edgeColors = {
+    CALLS: '#ef5350',
+    IMPORTS: '#42A5F5',
+    EXTENDS: '#66BB6A',
+    IMPLEMENTS: '#66BB6A',
+    CONTAINS: '#6f86a8',
+    HAS_METHOD: '#7d8590',
+    HAS_PROPERTY: '#7d8590',
+    OVERRIDES: '#AB47BC'
+  };
+
+  NODES.forEach(function(n) { nodeMap[n.id] = n; });
+  LINKS.forEach(function(l) {
+    if (!adj[l.source]) adj[l.source] = [];
+    if (!adj[l.target]) adj[l.target] = [];
+    adj[l.source].push({source: l.source, target: l.target, type: l.type, status: l.status, confidence: l.confidence, dir: 'out'});
+    adj[l.target].push({source: l.source, target: l.target, type: l.type, status: l.status, confidence: l.confidence, dir: 'in'});
+  });
+
+  var visibleGroups = {0:true,1:true,2:true,3:true,4:true,5:true,6:true,7:true,8:true};
+  var visibleStatuses = {added:true,removed:true,modified:true,moved:true,unchanged:false};
+  var selectedNode = null;
+
+  function getNodeColor(n) {
+    if (selectedNode && n.id === selectedNode.id) return '#ffffff';
+    if (n.status !== 'unchanged') return statusColors[n.status] || '#d7dde8';
+    return groupColors[n.group] || '#90A4AE';
+  }
+
+  function getFilteredData() {
+    var nodes = NODES.filter(function(n) {
+      return visibleGroups[n.group] && visibleStatuses[n.status];
+    });
+    var ids = {};
+    nodes.forEach(function(n) { ids[n.id] = true; });
+    var links = LINKS.filter(function(l) {
+      return ids[l.source] && ids[l.target] && (visibleStatuses[l.status] || (l.status === 'unchanged' && visibleStatuses.unchanged));
+    });
+    return {nodes: nodes, links: links};
+  }
+
+  var graph = ForceGraph3D()(document.getElementById('graph'))
+    .graphData(getFilteredData())
+    .backgroundColor('#050816')
+    .nodeVal(function(n) {
+      if (n.group === 0) return Math.max(2, Math.sqrt(n.degree + 1) * 2.2);
+      return Math.max(1.3, Math.sqrt(n.degree + 1) * (n.status === 'unchanged' ? 1.0 : 1.9));
+    })
+    .nodeColor(getNodeColor)
+    .nodeOpacity(function(n) { return n.status === 'unchanged' ? 0.18 : 0.96; })
+    .nodeLabel(function(n) {
+      return '<div style="background:#111827;padding:8px 12px;border-radius:8px;border:1px solid #29364f;font-size:13px">'
+        + '<b style="color:' + getNodeColor(n) + '">' + n.name + '</b> '
+        + '<span style="color:#93a4c5">' + n.label + '</span>'
+        + '<br><span style="color:#c8d4ea;font-size:11px">' + n.status + '</span>'
+        + '<br><span style="color:#8fc4ff;font-size:11px">' + n.fileName + (n.line ? ':' + n.line : '') + '</span>'
+        + '</div>';
+    })
+    .linkColor(function(l) {
+      if (l.status === 'added') return '#33cc7a';
+      if (l.status === 'removed') return '#ff6b6b';
+      return edgeColors[l.type] || '#45536f';
+    })
+    .linkOpacity(function(l) { return l.status === 'unchanged' ? 0.12 : 0.55; })
+    .linkWidth(function(l) {
+      if (l.status === 'added' || l.status === 'removed') return 1.6;
+      return l.confidence > 0.8 ? 1.0 : 0.5;
+    })
+    .linkDirectionalArrowLength(function(l) { return l.type === 'CONTAINS' ? 0 : 3; })
+    .linkDirectionalArrowRelPos(1)
+    .onNodeClick(function(n) { selectNode(n); })
+    .onBackgroundClick(function() { closePanel(); })
+    .d3AlphaDecay(0.022)
+    .d3VelocityDecay(0.32)
+    .warmupTicks(80)
+    .cooldownTicks(220);
+
+  graph.d3Force('charge').strength(-42).distanceMax(360);
+  graph.d3Force('link').distance(function(l) {
+    if (l.type === 'CONTAINS') return 22;
+    if (l.type === 'EXTENDS' || l.type === 'IMPLEMENTS') return 36;
+    return 70;
+  });
+
+  var searchEl = document.getElementById('search');
+  var resultsEl = document.getElementById('search-results');
+  searchEl.addEventListener('input', function() {
+    var q = searchEl.value.toLowerCase();
+    resultsEl.innerHTML = '';
+    if (q.length < 2) return;
+    var hits = NODES.filter(function(n) {
+      return (n.name.toLowerCase().indexOf(q) !== -1 || n.file.toLowerCase().indexOf(q) !== -1)
+        && visibleStatuses[n.status];
+    }).slice(0, 12);
+    hits.forEach(function(n) {
+      var d = document.createElement('div');
+      d.className = 'sr-item';
+      d.innerHTML = n.name + ' <span class="meta">' + n.status + ' · ' + n.fileName + '</span>';
+      d.onclick = function() { focusNode(n); searchEl.value = n.name; resultsEl.innerHTML = ''; };
+      resultsEl.appendChild(d);
+    });
+  });
+
+  function focusNode(n) {
+    var dist = n.group === 0 ? 210 : 150;
+    graph.cameraPosition({x: n.x + dist, y: n.y + dist/2, z: n.z + dist}, {x: n.x, y: n.y, z: n.z}, 1200);
+    setTimeout(function() { selectNode(n); }, 350);
+  }
+
+  function selectNode(n) {
+    selectedNode = n;
+    graph.nodeColor(graph.nodeColor());
+    openPanel(n);
+  }
+
+  function badge(text, color) {
+    return '<span class="badge" style="background:' + color + '22;color:' + color + '">' + text + '</span>';
+  }
+
+  function openPanel(n) {
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('p-name').textContent = n.name;
+    var badges = badge(n.label, groupColors[n.group] || '#90A4AE') + badge(n.status, statusColors[n.status] || '#ffffff');
+    if (n.bodyChanged) badges += badge('body changed', '#ffb84d');
+    if (n.fileChanged) badges += badge('file changed', '#8fc4ff');
+    document.getElementById('p-badges').innerHTML = badges;
+    document.getElementById('p-file').textContent = n.file + (n.line ? ':' + n.line : '');
+
+    var details = '';
+    details += row('Qualified', n.qualifiedName || n.name);
+    details += row('File', n.file);
+    if (n.containerName) details += row('Container', n.containerName);
+    details += row('Layer', n.layer);
+    details += row('Degree', n.degree + ' (' + n.inDeg + ' in, ' + n.outDeg + ' out)');
+    if (n.baseFile) details += row('Base', n.baseFile + (n.baseLine ? ':' + n.baseLine : ''));
+    if (n.headFile) details += row('Head', n.headFile + (n.headLine ? ':' + n.headLine : ''));
+    if (n.returnType) details += row('Returns', n.returnType);
+    if (n.matchKind) details += row('Matched by', n.matchKind);
+    document.getElementById('p-details').innerHTML = details;
+
+    var edges = adj[n.id] || [];
+    var inEdges = edges.filter(function(e) { return e.dir === 'in'; }).slice(0, 32);
+    var outEdges = edges.filter(function(e) { return e.dir === 'out'; }).slice(0, 32);
+    document.getElementById('p-in-title').textContent = 'Incoming (' + inEdges.length + ')';
+    document.getElementById('p-out-title').textContent = 'Outgoing (' + outEdges.length + ')';
+    document.getElementById('p-in').innerHTML = edgeMarkup(inEdges, 'source');
+    document.getElementById('p-out').innerHTML = edgeMarkup(outEdges, 'target');
+  }
+
+  function row(key, value) {
+    return '<div class="row"><span class="k">' + key + '</span><span class="v">' + value + '</span></div>';
+  }
+
+  function edgeMarkup(edges, side) {
+    return edges.map(function(e) {
+      var id = e[side];
+      var node = nodeMap[id];
+      var name = node ? node.name : '?';
+      var color = e.status === 'added' ? '#33cc7a' : e.status === 'removed' ? '#ff6b6b' : (edgeColors[e.type] || '#7d8590');
+      return '<div class="edge-item"><span class="dot" style="background:' + color + '"></span>'
+        + '<span class="ename" onclick="focusById(\'' + id + '\')">' + name + '</span>'
+        + '<span style="color:#7f8faa;font-size:10px">' + e.type + ' · ' + e.status + '</span></div>';
+    }).join('');
+  }
+
+  function closePanel() {
+    document.getElementById('panel').classList.remove('open');
+    selectedNode = null;
+    graph.nodeColor(graph.nodeColor());
+  }
+
+  function focusById(id) {
+    if (nodeMap[id]) focusNode(nodeMap[id]);
+  }
+
+  document.querySelectorAll('#filters input[data-group]').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      visibleGroups[parseInt(cb.dataset.group)] = cb.checked;
+      graph.graphData(getFilteredData());
+    });
+  });
+
+  document.querySelectorAll('#filters input[data-status]').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      visibleStatuses[cb.dataset.status] = cb.checked;
+      graph.graphData(getFilteredData());
+    });
+  });
+
+} catch(e) {
+  document.getElementById('error').style.display = 'block';
+  document.getElementById('error').innerHTML = '<b>Init Error:</b> ' + e.message + '<br><pre>' + e.stack + '</pre>';
+}
+</script>
+</body>
+</html>

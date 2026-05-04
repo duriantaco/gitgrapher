@@ -5,6 +5,7 @@ use smol_str::SmolStr;
 use std::path::Path;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Parser, Query, QueryCursor};
+use xxhash_rust::xxh3::xxh3_64;
 
 use crate::language::LanguageProvider;
 
@@ -301,11 +302,13 @@ impl TypeScriptProvider {
                 let is_async = is_node_async(node, source);
                 let param_count = count_parameters(node, source);
                 let return_type = extract_return_type(node, source);
+                let container_name = extract_container_name(node, source);
+                let body_hash = hash_node_body(node, source);
 
                 let mut props = NodeProperties::symbol(
                     name_str,
                     file_path,
-                    Language::TypeScript,
+                    graph_language_for_path(file_path),
                     (start.row + 1) as u32,
                     (end.row + 1) as u32,
                 );
@@ -315,6 +318,7 @@ impl TypeScriptProvider {
                     props.parameter_count = Some(pc);
                 }
                 props.return_type = return_type.map(SmolStr::new);
+                props.set_diff_metadata(label, container_name, body_hash);
 
                 nodes.push(GraphNode {
                     id,
@@ -466,11 +470,13 @@ impl TypeScriptProvider {
                 let param_count = count_parameters(node, source);
                 let return_type = extract_return_type(node, source);
                 let visibility = extract_visibility(node, source);
+                let container_name = extract_container_name(node, source);
+                let body_hash = hash_node_body(node, source);
 
                 let mut props = NodeProperties::symbol(
                     name_str,
                     file_path,
-                    Language::TypeScript,
+                    graph_language_for_path(file_path),
                     (start.row + 1) as u32,
                     (end.row + 1) as u32,
                 );
@@ -481,6 +487,7 @@ impl TypeScriptProvider {
                 }
                 props.return_type = return_type.map(SmolStr::new);
                 props.visibility = visibility.map(SmolStr::new);
+                props.set_diff_metadata(label, container_name, body_hash);
 
                 nodes.push(GraphNode {
                     id,
@@ -548,7 +555,7 @@ impl TypeScriptProvider {
                 calls.push(ExtractedCall {
                     caller_id,
                     callee_name: SmolStr::new(name),
-                    receiver: receiver.map(|r| SmolStr::new(r)),
+                    receiver: receiver.map(SmolStr::new),
                     file_path: SmolStr::new(file_path),
                     line,
                     arguments_count: args_count,
@@ -690,6 +697,12 @@ impl TypeScriptProvider {
     }
 }
 
+impl Default for TypeScriptProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LanguageProvider for TypeScriptProvider {
     fn language(&self) -> Language {
         Language::TypeScript
@@ -721,6 +734,43 @@ impl LanguageProvider for TypeScriptProvider {
 // ---------------------------------------------------------------------------
 // Helper functions
 // ---------------------------------------------------------------------------
+
+fn graph_language_for_path(file_path: &str) -> Language {
+    match Path::new(file_path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .and_then(Language::from_extension)
+    {
+        Some(Language::JavaScript) => Language::JavaScript,
+        _ => Language::TypeScript,
+    }
+}
+
+fn hash_node_body(node: Node, source: &[u8]) -> Option<u64> {
+    node.utf8_text(source)
+        .ok()
+        .map(|text| xxh3_64(text.as_bytes()))
+}
+
+fn extract_container_name(node: Node, source: &[u8]) -> Option<String> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        match parent.kind() {
+            "class_declaration" | "interface_declaration" => {
+                if let Some(name_node) = parent.child_by_field_name("name") {
+                    if let Ok(name) = name_node.utf8_text(source) {
+                        if !name.is_empty() {
+                            return Some(name.to_string());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        current = parent.parent();
+    }
+    None
+}
 
 /// Check if a node is exported (has export_statement parent or export keyword).
 fn is_node_exported(node: Node, source: &[u8]) -> bool {

@@ -33,8 +33,8 @@ fn scan_dir(dir: &Path, root: &Path, config: &Config, files: &mut Vec<SourceFile
 
         // Skip ignored patterns
         if config.ignore_patterns.iter().any(|p| {
-            if p.starts_with('*') {
-                name.ends_with(&p[1..])
+            if let Some(suffix) = p.strip_prefix('*') {
+                name.ends_with(suffix)
             } else {
                 name == p.as_str()
             }

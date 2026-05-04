@@ -82,7 +82,7 @@ impl SymbolTable {
     /// Remove all symbols for a file (used in incremental re-indexing).
     pub fn remove_file(&self, file_path: &str) {
         if let Some((_, file_syms)) = self.by_file.remove(file_path) {
-            for (name, _defs) in &file_syms {
+            for name in file_syms.keys() {
                 if let Some(mut global) = self.by_name.get_mut(name) {
                     global.retain(|d| d.file_path != file_path);
                 }

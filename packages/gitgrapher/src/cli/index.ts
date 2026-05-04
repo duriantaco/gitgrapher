@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * GitGrapher CLI — thin TypeScript wrapper around the Rust core.
+ * GitGrapher CLI - thin TypeScript wrapper around the Rust core.
  *
  * Phase 1: Uses child_process to call the Rust binary directly.
  * Future: Will use napi-rs bindings for zero-overhead calls.
@@ -13,7 +13,7 @@ const program = new Command();
 
 program
   .name('gitgrapher')
-  .description('Rust-powered code intelligence for AI agents')
+  .description('Experimental JavaScript wrapper for the GitGrapher Rust CLI')
   .version('0.1.0');
 
 program
@@ -23,16 +23,15 @@ program
   .option('-v, --verbose', 'Enable verbose output')
   .action(async (path: string, options: { verbose?: boolean }) => {
     console.log(`Analyzing: ${path}`);
-    console.log('(TypeScript CLI wrapper — Rust napi bindings coming soon)');
+    console.log('(TypeScript wrapper is experimental; use the Rust CLI for production workflows)');
     // TODO: Call Rust via napi-rs
   });
 
 program
-  .command('mcp')
-  .description('Start MCP server for AI agent integration')
+  .command('setup')
+  .description('Show wrapper status')
   .action(async () => {
-    console.log('MCP server starting...');
-    // TODO: Implement MCP server using @modelcontextprotocol/sdk
+    console.log('MCP support is planned but not shipped in this wrapper yet.');
   });
 
 program

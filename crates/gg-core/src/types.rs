@@ -321,6 +321,12 @@ pub struct NodeProperties {
     pub name: SmolStr,
     pub file_path: SmolStr,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_name: Option<SmolStr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qualified_name: Option<SmolStr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_key: Option<SmolStr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_line: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_line: Option<u32>,
@@ -378,6 +384,8 @@ pub struct NodeProperties {
     pub is_abstract: bool,
     #[serde(default)]
     pub is_async: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_hash: Option<u64>,
     // Route properties
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_keys: Option<Vec<SmolStr>>,
@@ -396,6 +404,9 @@ impl NodeProperties {
         Self {
             name: name.into(),
             file_path: file_path.into(),
+            container_name: None,
+            qualified_name: None,
+            symbol_key: None,
             start_line: None,
             end_line: None,
             language: None,
@@ -423,6 +434,7 @@ impl NodeProperties {
             is_readonly: false,
             is_abstract: false,
             is_async: false,
+            body_hash: None,
             response_keys: None,
             error_keys: None,
             middleware: None,
@@ -444,6 +456,29 @@ impl NodeProperties {
         props.end_line = Some(end_line);
         props
     }
+
+    /// Attach metadata used for revision-to-revision symbol matching.
+    pub fn set_diff_metadata(
+        &mut self,
+        label: NodeLabel,
+        container_name: Option<impl Into<SmolStr>>,
+        body_hash: Option<u64>,
+    ) {
+        self.container_name = container_name.map(Into::into);
+        let qualified = self
+            .container_name
+            .as_ref()
+            .map(|container| format!("{container}.{}", self.name))
+            .unwrap_or_else(|| self.name.to_string());
+        self.qualified_name = Some(SmolStr::new(&qualified));
+
+        let language = self.language.map(|lang| lang.as_str()).unwrap_or("unknown");
+        let arity = self.parameter_count.unwrap_or(0);
+        self.symbol_key = Some(SmolStr::new(format!(
+            "{language}::{label}::{qualified}::{arity}"
+        )));
+        self.body_hash = body_hash;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -451,6 +486,45 @@ pub struct GraphNode {
     pub id: NodeId,
     pub label: NodeLabel,
     pub properties: NodeProperties,
+}
+
+impl GraphNode {
+    pub fn qualified_name(&self) -> &str {
+        self.properties
+            .qualified_name
+            .as_deref()
+            .unwrap_or(self.properties.name.as_str())
+    }
+
+    pub fn symbol_key(&self) -> String {
+        self.properties
+            .symbol_key
+            .as_deref()
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                let language = self
+                    .properties
+                    .language
+                    .map(|lang| lang.as_str())
+                    .unwrap_or("unknown");
+                let arity = self.properties.parameter_count.unwrap_or(0);
+                format!(
+                    "{language}::{}::{}::{arity}",
+                    self.label,
+                    self.qualified_name()
+                )
+            })
+    }
+
+    pub fn location_key(&self) -> String {
+        let arity = self.properties.parameter_count.unwrap_or(0);
+        format!(
+            "{}::{}::{}::{arity}",
+            self.properties.file_path,
+            self.label,
+            self.qualified_name()
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------

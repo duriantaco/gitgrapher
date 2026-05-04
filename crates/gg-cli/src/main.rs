@@ -1,3 +1,5 @@
+mod diff;
+
 use clap::{Parser, Subcommand};
 use gg_core::types::{NodeLabel, RelationType};
 use gg_graph::store::{Direction, GraphStore};
@@ -68,7 +70,7 @@ enum Commands {
         #[arg(default_value = ".")]
         path: PathBuf,
     },
-    /// Configure gitgrapher for your editor (Claude Code, Cursor, etc.)
+    /// Show AI-agent integration status
     Setup,
     /// List all indexed repositories
     List,
@@ -114,6 +116,27 @@ enum Commands {
         #[arg(short = 'n', long, default_value = "20")]
         limit: usize,
     },
+    /// Compare two git revisions and export a diff graph
+    Diff {
+        /// Git revision to diff from. Use WORKTREE for the current checkout.
+        #[arg(short = 'b', long, default_value = "HEAD")]
+        base: String,
+        /// Git revision to diff to. Use WORKTREE for the current checkout.
+        #[arg(short = 'H', long, default_value = "WORKTREE")]
+        head: String,
+        /// Output format: text, json, html
+        #[arg(short, long, default_value = "text")]
+        format: String,
+        /// Output file path for json/html exports
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Path inside the target repository
+        #[arg(short, long, default_value = ".")]
+        path: PathBuf,
+        /// Maximum number of symbol nodes to include in graph exports
+        #[arg(short = 'n', long)]
+        limit: Option<usize>,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -148,12 +171,20 @@ fn main() -> anyhow::Result<()> {
         } => cmd_export(&path, &format, output.as_deref(), limit)?,
         Commands::Serve { port, path } => cmd_serve(&path, port)?,
         Commands::Symbols { label, path, limit } => cmd_symbols(&path, label.as_deref(), limit)?,
+        Commands::Diff {
+            base,
+            head,
+            format,
+            output,
+            path,
+            limit,
+        } => diff::cmd_diff(&path, &base, &head, &format, output.as_deref(), limit)?,
     }
 
     Ok(())
 }
 
-fn cmd_analyze(path: &PathBuf, _verbose: bool) -> anyhow::Result<()> {
+fn cmd_analyze(path: &Path, _verbose: bool) -> anyhow::Result<()> {
     let abs_path = std::fs::canonicalize(path)?;
     let result = gg_pipeline::analyze(abs_path.to_str().unwrap_or("."))?;
 
@@ -211,7 +242,7 @@ fn cmd_analyze(path: &PathBuf, _verbose: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn load_graph(path: &PathBuf) -> anyhow::Result<GraphStore> {
+fn load_graph(path: &Path) -> anyhow::Result<GraphStore> {
     let data_dir = path.join(DATA_DIR);
     if !GraphStore::exists(&data_dir) {
         anyhow::bail!(
@@ -222,7 +253,7 @@ fn load_graph(path: &PathBuf) -> anyhow::Result<GraphStore> {
     GraphStore::load(&data_dir).map_err(|e| anyhow::anyhow!(e))
 }
 
-fn cmd_query(path: &PathBuf, query: &str, limit: usize) -> anyhow::Result<()> {
+fn cmd_query(path: &Path, query: &str, limit: usize) -> anyhow::Result<()> {
     let store = load_graph(path)?;
 
     // Use Tantivy BM25 search
@@ -285,7 +316,7 @@ fn cmd_query(path: &PathBuf, query: &str, limit: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_context(path: &PathBuf, name: &str) -> anyhow::Result<()> {
+fn cmd_context(path: &Path, name: &str) -> anyhow::Result<()> {
     let store = load_graph(path)?;
     let matches = store.nodes_by_name(name);
 
@@ -354,7 +385,7 @@ fn cmd_context(path: &PathBuf, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_impact(path: &PathBuf, name: &str, direction: &str, depth: usize) -> anyhow::Result<()> {
+fn cmd_impact(path: &Path, name: &str, direction: &str, depth: usize) -> anyhow::Result<()> {
     let store = load_graph(path)?;
     let matches = store.nodes_by_name(name);
 
@@ -446,7 +477,7 @@ fn cmd_impact(path: &PathBuf, name: &str, direction: &str, depth: usize) -> anyh
     Ok(())
 }
 
-fn cmd_status(path: &PathBuf) -> anyhow::Result<()> {
+fn cmd_status(path: &Path) -> anyhow::Result<()> {
     let data_dir = path.join(DATA_DIR);
 
     if !GraphStore::exists(&data_dir) {
@@ -488,7 +519,7 @@ fn cmd_status(path: &PathBuf) -> anyhow::Result<()> {
 }
 
 fn cmd_export(
-    path: &PathBuf,
+    path: &Path,
     format: &str,
     output: Option<&Path>,
     limit: Option<usize>,
@@ -617,7 +648,7 @@ fn export_html(store: &GraphStore, out: &Path, limit: Option<usize>) -> anyhow::
     let max_nodes = limit.unwrap_or(3000);
 
     let mut node_list: Vec<_> = store.nodes().filter(|n| n.label.is_symbol()).collect();
-    node_list.sort_by(|a, b| store.degree(&b.id).cmp(&store.degree(&a.id)));
+    node_list.sort_by_key(|node| std::cmp::Reverse(store.degree(&node.id)));
     let nodes: Vec<_> = node_list.into_iter().take(max_nodes).collect();
     let node_ids: std::collections::HashSet<_> = nodes.iter().map(|n| &n.id).collect();
     let edges: Vec<_> = store
@@ -704,7 +735,7 @@ fn export_html(store: &GraphStore, out: &Path, limit: Option<usize>) -> anyhow::
     Ok(())
 }
 
-fn cmd_serve(path: &PathBuf, port: u16) -> anyhow::Result<()> {
+fn cmd_serve(path: &Path, port: u16) -> anyhow::Result<()> {
     let abs_path = std::fs::canonicalize(path)?;
     let data_dir = abs_path.join(DATA_DIR);
     if !GraphStore::exists(&data_dir) {
@@ -782,7 +813,7 @@ fn cmd_serve(path: &PathBuf, port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_symbols(path: &PathBuf, label_filter: Option<&str>, limit: usize) -> anyhow::Result<()> {
+fn cmd_symbols(path: &Path, label_filter: Option<&str>, limit: usize) -> anyhow::Result<()> {
     let store = load_graph(path)?;
 
     let label = label_filter.and_then(|l| match l.to_lowercase().as_str() {
@@ -840,48 +871,18 @@ fn cmd_symbols(path: &PathBuf, label_filter: Option<&str>, limit: usize) -> anyh
 
 fn cmd_setup() -> anyhow::Result<()> {
     println!();
-    println!("  GitGrapher Setup");
+    println!("  GitGrapher AI-agent setup");
     println!();
+    println!("  MCP support is planned but not shipped in this CLI yet.");
+    println!("  This command will not write editor configuration until the MCP");
+    println!("  server is implemented end to end.");
+    println!();
+    println!("  Today, use the local CLI commands:");
+    println!("    gitgrapher analyze /path/to/repo");
+    println!("    gitgrapher query <term> -p /path/to/repo");
+    println!("    gitgrapher context <symbol> -p /path/to/repo");
+    println!("    gitgrapher impact <symbol> -p /path/to/repo");
 
-    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Cannot find home directory"))?;
-    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("gitgrapher"));
-    let exe_str = exe.to_string_lossy();
-
-    // Detect and configure editors
-    let mut configured = Vec::new();
-
-    // Claude Code: ~/.claude.json
-    let claude_config = home.join(".claude.json");
-    if configure_claude_code(&claude_config, &exe_str)? {
-        configured.push("Claude Code");
-    }
-
-    // Cursor: ~/.cursor/mcp.json
-    let cursor_dir = home.join(".cursor");
-    if cursor_dir.exists() {
-        let cursor_config = cursor_dir.join("mcp.json");
-        if configure_cursor(&cursor_config, &exe_str)? {
-            configured.push("Cursor");
-        }
-    }
-
-    if configured.is_empty() {
-        println!("  No editors detected. You can manually configure MCP:");
-        println!();
-        println!("  Claude Code (~/.claude.json):");
-        println!("    {{");
-        println!("      \"mcpServers\": {{");
-        println!("        \"gitgrapher\": {{");
-        println!("          \"command\": \"{}\",", exe_str);
-        println!("          \"args\": [\"mcp\"]");
-        println!("        }}");
-        println!("      }}");
-        println!("    }}");
-    } else {
-        println!("  Configured: {}", configured.join(", "));
-    }
-
-    // Show registry
     let registry = Registry::load();
     if !registry.repos.is_empty() {
         println!();
@@ -890,9 +891,6 @@ fn cmd_setup() -> anyhow::Result<()> {
             println!("    {} — {}", name, entry.path);
         }
     }
-
-    println!();
-    println!("  Next: gitgrapher analyze /path/to/repo");
     println!();
 
     Ok(())
@@ -933,7 +931,7 @@ fn cmd_list() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_clean(path: &PathBuf) -> anyhow::Result<()> {
+fn cmd_clean(path: &Path) -> anyhow::Result<()> {
     let abs_path = std::fs::canonicalize(path)?;
     let data_dir = abs_path.join(DATA_DIR);
 
@@ -1013,67 +1011,4 @@ fn chrono_now() -> String {
     let secs = duration.as_secs();
     // Rough ISO format: days since epoch * readable
     format!("unix:{}", secs)
-}
-
-// ---------------------------------------------------------------------------
-// Editor MCP configuration
-// ---------------------------------------------------------------------------
-
-fn configure_claude_code(config_path: &Path, exe: &str) -> anyhow::Result<bool> {
-    let mut config: serde_json::Value = if config_path.exists() {
-        let data = std::fs::read_to_string(config_path)?;
-        serde_json::from_str(&data).unwrap_or(serde_json::json!({}))
-    } else {
-        serde_json::json!({})
-    };
-
-    let servers = config
-        .as_object_mut()
-        .unwrap()
-        .entry("mcpServers")
-        .or_insert(serde_json::json!({}));
-
-    servers.as_object_mut().unwrap().insert(
-        "gitgrapher".to_string(),
-        serde_json::json!({
-            "command": exe,
-            "args": ["mcp"]
-        }),
-    );
-
-    std::fs::write(config_path, serde_json::to_string_pretty(&config)?)?;
-    println!(
-        "  Wrote Claude Code MCP config to {}",
-        config_path.display()
-    );
-
-    Ok(true)
-}
-
-fn configure_cursor(config_path: &Path, exe: &str) -> anyhow::Result<bool> {
-    let mut config: serde_json::Value = if config_path.exists() {
-        let data = std::fs::read_to_string(config_path)?;
-        serde_json::from_str(&data).unwrap_or(serde_json::json!({}))
-    } else {
-        serde_json::json!({})
-    };
-
-    let servers = config
-        .as_object_mut()
-        .unwrap()
-        .entry("mcpServers")
-        .or_insert(serde_json::json!({}));
-
-    servers.as_object_mut().unwrap().insert(
-        "gitgrapher".to_string(),
-        serde_json::json!({
-            "command": exe,
-            "args": ["mcp"]
-        }),
-    );
-
-    std::fs::write(config_path, serde_json::to_string_pretty(&config)?)?;
-    println!("  Wrote Cursor MCP config to {}", config_path.display());
-
-    Ok(true)
 }

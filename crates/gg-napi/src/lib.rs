@@ -72,3 +72,9 @@ impl GitGrapher {
         })
     }
 }
+
+impl Default for GitGrapher {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -24,6 +24,12 @@ impl JavaScriptProvider {
     }
 }
 
+impl Default for JavaScriptProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LanguageProvider for JavaScriptProvider {
     fn language(&self) -> Language {
         Language::JavaScript

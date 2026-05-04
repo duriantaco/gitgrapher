@@ -60,7 +60,6 @@ pub struct NamedImportBinding {
 }
 
 /// The resolution context holds all cross-file linking state.
-
 pub struct ResolutionContext {
     /// file_path → set of files it imports from
     import_map: HashMap<SmolStr, HashSet<SmolStr>>,
@@ -131,9 +130,9 @@ impl ResolutionContext {
     ///
     /// Resolution order:
     /// 1. Same-file (confidence 0.95)
-    /// 2a-named. Named binding chain (confidence 0.9)
-    /// 2a. Import-scoped (confidence 0.9)
-    /// 3. Global (confidence 0.5)
+    /// 2. Named binding chain (confidence 0.9)
+    /// 3. Import-scoped (confidence 0.9)
+    /// 4. Global (confidence 0.5)
     pub fn resolve(
         &mut self,
         name: &str,
