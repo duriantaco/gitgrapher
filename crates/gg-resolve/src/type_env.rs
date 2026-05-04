@@ -156,7 +156,7 @@ pub fn build_exported_type_map(
 /// - No convergence detection
 /// - No progress reporting
 pub fn resolve_fixpoint(
-    pending: &mut Vec<PendingAssignment>,
+    pending: &mut [PendingAssignment],
     env: &mut TypeEnv,
     return_types: &HashMap<SmolStr, SmolStr>,
     config: &Config,

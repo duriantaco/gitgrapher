@@ -5,6 +5,7 @@ use smol_str::SmolStr;
 use std::path::Path;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Parser, Query, QueryCursor};
+use xxhash_rust::xxh3::xxh3_64;
 
 use crate::language::LanguageProvider;
 
@@ -153,6 +154,8 @@ impl PythonProvider {
                 let param_count = count_python_params(node, source);
                 let decorators = extract_decorators(node, source);
                 let is_static = decorators.iter().any(|d| d == "staticmethod");
+                let container_name = enclosing_class_name(node, source);
+                let body_hash = hash_node_body(node, source);
 
                 let mut props = NodeProperties::symbol(
                     name_str,
@@ -170,6 +173,7 @@ impl PythonProvider {
                 if !decorators.is_empty() {
                     props.annotations = Some(decorators.into_iter().map(SmolStr::new).collect());
                 }
+                props.set_diff_metadata(actual_label, container_name, body_hash);
 
                 nodes.push(GraphNode {
                     id,
@@ -231,7 +235,7 @@ impl PythonProvider {
                 calls.push(ExtractedCall {
                     caller_id,
                     callee_name: SmolStr::new(name),
-                    receiver: receiver.map(|r| SmolStr::new(r)),
+                    receiver: receiver.map(SmolStr::new),
                     file_path: SmolStr::new(file_path),
                     line,
                     arguments_count: node
@@ -389,6 +393,12 @@ impl PythonProvider {
     }
 }
 
+impl Default for PythonProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LanguageProvider for PythonProvider {
     fn language(&self) -> Language {
         Language::Python
@@ -420,6 +430,29 @@ impl LanguageProvider for PythonProvider {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+fn hash_node_body(node: Node, source: &[u8]) -> Option<u64> {
+    node.utf8_text(source)
+        .ok()
+        .map(|text| xxh3_64(text.as_bytes()))
+}
+
+fn enclosing_class_name(node: Node, source: &[u8]) -> Option<String> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if parent.kind() == "class_definition" {
+            if let Some(name_node) = parent.child_by_field_name("name") {
+                if let Ok(name) = name_node.utf8_text(source) {
+                    if !name.is_empty() {
+                        return Some(name.to_string());
+                    }
+                }
+            }
+        }
+        current = parent.parent();
+    }
+    None
+}
 
 /// Check if a function_definition is inside a class_definition.
 fn is_inside_class(node: Node) -> bool {
@@ -471,7 +504,7 @@ fn extract_decorators(node: Node, source: &[u8]) -> Vec<String> {
             let mut cursor = parent.walk();
             for child in parent.children(&mut cursor) {
                 if child.kind() == "decorator" {
-                    if let Some(text) = child.utf8_text(source).ok() {
+                    if let Ok(text) = child.utf8_text(source) {
                         let name = text
                             .trim_start_matches('@')
                             .split('(')
@@ -635,6 +668,6 @@ mod tests {
             .properties
             .annotations
             .as_ref()
-            .map_or(false, |a| !a.is_empty()));
+            .is_some_and(|a| !a.is_empty()));
     }
 }

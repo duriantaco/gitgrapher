@@ -1,7 +1,8 @@
 {
   "name": "gitgrapher",
   "version": "0.1.0",
-  "description": "Rust-powered code intelligence for AI agents. 10-100x faster than alternatives.",
+  "private": true,
+  "description": "Experimental JavaScript wrapper for the GitGrapher Rust CLI.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -12,7 +13,6 @@
     "dev": "tsx src/cli/index.ts"
   },
   "keywords": [
-    "mcp",
     "code-intelligence",
     "knowledge-graph",
     "rust",

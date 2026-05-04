@@ -60,10 +60,10 @@ pub fn detect_communities(store: &GraphStore, resolution: f64) -> CommunityResul
         // Only include symbol nodes
         let src_ok = store
             .get_node(&edge.source_id)
-            .map_or(false, |n| n.label.is_symbol());
+            .is_some_and(|n| n.label.is_symbol());
         let tgt_ok = store
             .get_node(&edge.target_id)
-            .map_or(false, |n| n.label.is_symbol());
+            .is_some_and(|n| n.label.is_symbol());
         if !src_ok || !tgt_ok {
             continue;
         }
@@ -185,7 +185,7 @@ pub fn detect_communities(store: &GraphStore, resolution: f64) -> CommunityResul
         .into_iter()
         .filter(|(_, members)| members.len() >= 2)
         .collect();
-    final_comms.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    final_comms.sort_by_key(|community| std::cmp::Reverse(community.1.len()));
 
     // Step 5: Create community nodes with heuristic labels
     let mut community_nodes = Vec::new();

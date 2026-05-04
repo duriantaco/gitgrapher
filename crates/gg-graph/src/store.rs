@@ -160,7 +160,7 @@ impl GraphStore {
                 edge_ids
                     .iter()
                     .filter_map(|eid| self.edges.get(eid.as_str()))
-                    .filter(|e| rel_type.map_or(true, |rt| e.rel_type == rt))
+                    .filter(|e| rel_type.is_none_or(|rt| e.rel_type == rt))
                     .collect()
             })
             .unwrap_or_default()
@@ -174,7 +174,7 @@ impl GraphStore {
                 edge_ids
                     .iter()
                     .filter_map(|eid| self.edges.get(eid.as_str()))
-                    .filter(|e| rel_type.map_or(true, |rt| e.rel_type == rt))
+                    .filter(|e| rel_type.is_none_or(|rt| e.rel_type == rt))
                     .collect()
             })
             .unwrap_or_default()

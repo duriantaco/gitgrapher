@@ -4,7 +4,6 @@ use gg_core::types::{Language, ParseResult};
 use std::path::Path;
 
 /// Trait that each language must implement to support parsing.
-
 pub trait LanguageProvider: Send + Sync {
     /// The language this provider handles.
     fn language(&self) -> Language;

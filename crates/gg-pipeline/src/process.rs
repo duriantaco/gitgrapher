@@ -134,7 +134,7 @@ pub fn detect_processes(
 
     // Limit and sort by length (longer = more interesting)
     let mut limited: Vec<Vec<SmolStr>> = deduped;
-    limited.sort_by(|a, b| b.len().cmp(&a.len()));
+    limited.sort_by_key(|trace| std::cmp::Reverse(trace.len()));
     limited.truncate(config.max_processes);
 
     // Create process nodes and step edges
@@ -348,7 +348,7 @@ fn trace_from_entry(
 
 /// Remove traces that are subsets of longer traces.
 fn deduplicate_traces(mut traces: Vec<Vec<SmolStr>>) -> Vec<Vec<SmolStr>> {
-    traces.sort_by(|a, b| b.len().cmp(&a.len()));
+    traces.sort_by_key(|trace| std::cmp::Reverse(trace.len()));
 
     let mut result: Vec<Vec<SmolStr>> = Vec::new();
     for trace in traces {

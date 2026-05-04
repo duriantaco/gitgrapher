@@ -152,6 +152,25 @@ pub fn analyze(repo_path: &str) -> GgResult<AnalyzeResult> {
         }
     };
 
+    let existing_store = match existing_store {
+        Some(store)
+            if changeset.added.is_empty()
+                && changeset.modified.is_empty()
+                && changeset.deleted.is_empty() =>
+        {
+            info!("No changes detected — index is up to date");
+            return Ok(AnalyzeResult {
+                files_scanned: 0,
+                total_nodes: store.node_count(),
+                total_edges: store.edge_count(),
+                languages_detected: languages,
+                resolution_stats: ResolutionStats::default(),
+                store,
+            });
+        }
+        store => store,
+    };
+
     let is_incremental = existing_store.is_some()
         && !changeset.unchanged.is_empty()
         && (changeset.added.len() + changeset.modified.len() + changeset.deleted.len()) > 0;
@@ -168,22 +187,6 @@ pub fn analyze(repo_path: &str) -> GgResult<AnalyzeResult> {
         to_parse.extend(&changeset.modified);
         to_parse
     } else {
-        if existing_store.is_some()
-            && changeset.added.is_empty()
-            && changeset.modified.is_empty()
-            && changeset.deleted.is_empty()
-        {
-            info!("No changes detected — index is up to date");
-            let store = existing_store.unwrap();
-            return Ok(AnalyzeResult {
-                files_scanned: 0,
-                total_nodes: store.node_count(),
-                total_edges: store.edge_count(),
-                languages_detected: languages,
-                resolution_stats: ResolutionStats::default(),
-                store,
-            });
-        }
         info!("Full index (no previous index or too many changes)");
         (0..files.len()).collect()
     };
@@ -331,11 +334,7 @@ pub fn analyze(repo_path: &str) -> GgResult<AnalyzeResult> {
 
                 // Record named bindings for precise symbol resolution
                 if !import.is_namespace {
-                    let exported_name = if import.is_default {
-                        import.imported_name.clone()
-                    } else {
-                        import.imported_name.clone()
-                    };
+                    let exported_name = import.imported_name.clone();
                     let local_name = import
                         .alias
                         .as_ref()
@@ -391,7 +390,7 @@ pub fn analyze(repo_path: &str) -> GgResult<AnalyzeResult> {
         // Resolve each call individually
         for call in &result.calls {
             let targets = CallResolver::resolve_calls(
-                &[call.clone()],
+                std::slice::from_ref(call),
                 file_path,
                 &mut resolution_ctx,
                 &symbols,
@@ -499,7 +498,7 @@ pub fn analyze(repo_path: &str) -> GgResult<AnalyzeResult> {
     let data_dir = root.join(DATA_DIR);
     store
         .save(&data_dir)
-        .map_err(|e| gg_core::error::GgError::Serialization(e))?;
+        .map_err(gg_core::error::GgError::Serialization)?;
     info!("Graph saved to {}", data_dir.display());
 
     info!(
