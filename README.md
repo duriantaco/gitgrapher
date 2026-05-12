@@ -94,6 +94,8 @@ GitGrapher tracks:
 - **TypeScript**: `.ts`, `.tsx`, `.mts`, `.cts`
 - **JavaScript**: `.js`, `.jsx`, `.mjs`, `.cjs`
 - **Python**: `.py`, `.pyi`
+- **Go**: `.go`
+- **Rust**: `.rs`
 
 More languages are tracked in [ROADMAP.md](ROADMAP.md).
 

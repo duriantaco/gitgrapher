@@ -67,11 +67,21 @@ pub struct ImportResolver {
     cache: HashMap<String, Option<String>>,
 }
 
-/// TypeScript/JavaScript extensions to try when resolving.
-const TS_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+/// Source extensions to try when resolving imports across registered providers.
+const SOURCE_EXTENSIONS: &[&str] = &[
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".pyi", ".go", ".rs",
+];
 
 /// Index filenames to try for directory imports.
-const INDEX_FILES: &[&str] = &["index.ts", "index.tsx", "index.js", "index.jsx"];
+const INDEX_FILES: &[&str] = &[
+    "index.ts",
+    "index.tsx",
+    "index.js",
+    "index.jsx",
+    "__init__.py",
+    "mod.rs",
+    "main.go",
+];
 
 impl ImportResolver {
     pub fn new(all_files: Vec<String>) -> Self {
@@ -185,7 +195,7 @@ impl ImportResolver {
         }
 
         // Try with extensions
-        for ext in TS_EXTENSIONS {
+        for ext in SOURCE_EXTENSIONS {
             let candidate = format!("{base}{ext}");
             if self.file_exists(&candidate) {
                 return Some(candidate);
@@ -228,7 +238,7 @@ impl ImportResolver {
             }
 
             // Try with extensions
-            for ext in TS_EXTENSIONS {
+            for ext in SOURCE_EXTENSIONS {
                 let with_ext = format!("{suffix}{ext}");
                 let indices = self.index.lookup(&with_ext);
                 if indices.len() == 1 {
@@ -305,12 +315,27 @@ mod tests {
 
     #[test]
     fn test_extension_inference() {
-        let mut r = make_resolver(&["src/utils.ts", "src/app.ts"]);
+        let mut r = make_resolver(&[
+            "src/utils.ts",
+            "src/app.ts",
+            "src/service.go",
+            "src/main.go",
+            "src/repo.rs",
+            "src/lib.rs",
+        ]);
 
         // Import without extension should find .ts
         assert_eq!(
             r.resolve("./utils", "src/app.ts", Language::TypeScript),
             Some("src/utils.ts".to_string())
+        );
+        assert_eq!(
+            r.resolve("./service", "src/main.go", Language::Go),
+            Some("src/service.go".to_string())
+        );
+        assert_eq!(
+            r.resolve("./repo", "src/lib.rs", Language::Rust),
+            Some("src/repo.rs".to_string())
         );
     }
 

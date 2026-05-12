@@ -4,7 +4,6 @@ This roadmap is intentionally focused on adoption blockers and the core engine w
 
 ## Near Term
 
-- [ ] Add Go and Rust language providers.
 - [ ] Improve receiver type inference for method calls.
 - [ ] Add screenshot/GIF assets for graph and diff workflows.
 
@@ -19,6 +18,7 @@ This roadmap is intentionally focused on adoption blockers and the core engine w
 
 - [x] Rust CLI for analyze, query, context, impact, symbols, status, list, clean, export, serve, and diff.
 - [x] TypeScript, JavaScript, and Python parsing.
+- [x] Go and Rust parsing.
 - [x] Persistent local graph storage in `.gitgrapher/`.
 - [x] Incremental file change detection.
 - [x] MCP over stdio with tools for `query`, `context`, `impact`, `list_repos`, and graph resources.

@@ -1,6 +1,8 @@
+pub mod go;
 pub mod javascript;
 pub mod language;
 pub mod python;
+pub mod rust;
 pub mod scanner;
 pub mod typescript;
 
@@ -23,6 +25,8 @@ impl LanguageRegistry {
         reg.register(Box::new(typescript::TypeScriptProvider::new()));
         reg.register(Box::new(javascript::JavaScriptProvider::new()));
         reg.register(Box::new(python::PythonProvider::new()));
+        reg.register(Box::new(go::GoProvider::new()));
+        reg.register(Box::new(rust::RustProvider::new()));
         reg
     }
 
