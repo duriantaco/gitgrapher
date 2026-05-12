@@ -1,4 +1,6 @@
+mod benchmark;
 mod diff;
+mod mcp;
 
 use clap::{Parser, Subcommand};
 use gg_core::types::{NodeLabel, RelationType};
@@ -70,8 +72,22 @@ enum Commands {
         #[arg(default_value = ".")]
         path: PathBuf,
     },
+    /// Benchmark cold, no-change, and one-file incremental indexing
+    Benchmark {
+        /// Path to the repository to benchmark
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Output format: text or json
+        #[arg(short, long, default_value = "text")]
+        format: String,
+        /// Source file to mutate for the one-file incremental run
+        #[arg(long)]
+        sample_file: Option<PathBuf>,
+    },
     /// Show AI-agent integration status
     Setup,
+    /// Start a stdio MCP server for AI coding agents
+    Mcp,
     /// List all indexed repositories
     List,
     /// Remove index for a repository
@@ -143,6 +159,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive(tracing::Level::INFO.into()),
@@ -160,7 +177,13 @@ fn main() -> anyhow::Result<()> {
             path,
         } => cmd_impact(&path, &name, &direction, depth)?,
         Commands::Status { path } => cmd_status(&path)?,
+        Commands::Benchmark {
+            path,
+            format,
+            sample_file,
+        } => benchmark::cmd_benchmark(&path, &format, sample_file.as_deref())?,
         Commands::Setup => cmd_setup()?,
+        Commands::Mcp => mcp::run_stdio()?,
         Commands::List => cmd_list()?,
         Commands::Clean { path } => cmd_clean(&path)?,
         Commands::Export {
@@ -873,9 +896,12 @@ fn cmd_setup() -> anyhow::Result<()> {
     println!();
     println!("  GitGrapher AI-agent setup");
     println!();
-    println!("  MCP support is planned but not shipped in this CLI yet.");
-    println!("  This command will not write editor configuration until the MCP");
-    println!("  server is implemented end to end.");
+    println!("  MCP support is available over stdio:");
+    println!("    gitgrapher mcp");
+    println!();
+    println!("  Use that command in Claude Code, Cursor, or any MCP client");
+    println!("  that can launch a local stdio server. This command does not");
+    println!("  write editor configuration automatically.");
     println!();
     println!("  Today, use the local CLI commands:");
     println!("    gitgrapher analyze /path/to/repo");

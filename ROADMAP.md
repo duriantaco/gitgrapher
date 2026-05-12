@@ -5,8 +5,6 @@ This roadmap is intentionally focused on adoption blockers and the core engine w
 ## Near Term
 
 - [ ] Publish tagged release binaries for macOS, Linux, and Windows.
-- [ ] Add a reproducible benchmark fixture and publish current numbers in `docs/benchmark.md`.
-- [ ] Implement MCP over stdio with tools for `query`, `context`, `impact`, `list_repos`, and graph resources.
 - [ ] Add Go and Rust language providers.
 - [ ] Improve receiver type inference for method calls.
 - [ ] Add screenshot/GIF assets for graph and diff workflows.
@@ -16,7 +14,6 @@ This roadmap is intentionally focused on adoption blockers and the core engine w
 - [ ] Publish a working npm wrapper after the Rust binary distribution path is stable.
 - [ ] Add Java and C# language providers.
 - [ ] Add graph export filters for relation type, language, community, and symbol label.
-- [ ] Add a benchmark command that emits machine-readable JSON.
 - [ ] Add regression fixtures for import resolution and graph diffs.
 
 ## Done
@@ -25,4 +22,7 @@ This roadmap is intentionally focused on adoption blockers and the core engine w
 - [x] TypeScript, JavaScript, and Python parsing.
 - [x] Persistent local graph storage in `.gitgrapher/`.
 - [x] Incremental file change detection.
+- [x] MCP over stdio with tools for `query`, `context`, `impact`, `list_repos`, and graph resources.
+- [x] Benchmark command with machine-readable JSON output.
+- [x] Published 50,000-function synthetic benchmark in `docs/benchmark.md`.
 - [x] Interactive 3D graph export and local viewer.

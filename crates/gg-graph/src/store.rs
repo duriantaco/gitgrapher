@@ -61,6 +61,18 @@ impl GraphStore {
     pub fn add_node(&mut self, node: GraphNode) {
         let id = node.id.clone();
 
+        if let Some(old) = self.nodes.get(&id) {
+            if let Some(v) = self.by_file.get_mut(&old.properties.file_path) {
+                v.retain(|node_id| node_id != &id);
+            }
+            if let Some(v) = self.by_label.get_mut(&old.label) {
+                v.retain(|node_id| node_id != &id);
+            }
+            if let Some(v) = self.by_name.get_mut(&old.properties.name) {
+                v.retain(|node_id| node_id != &id);
+            }
+        }
+
         // Update secondary indexes
         self.by_file
             .entry(node.properties.file_path.clone())
@@ -81,6 +93,15 @@ impl GraphStore {
     /// Add an edge to the graph.
     pub fn add_edge(&mut self, edge: GraphEdge) {
         let id = edge.id.clone();
+
+        if let Some(old) = self.edges.get(&id) {
+            if let Some(v) = self.outgoing.get_mut(&old.source_id) {
+                v.retain(|edge_id| edge_id != &id);
+            }
+            if let Some(v) = self.incoming.get_mut(&old.target_id) {
+                v.retain(|edge_id| edge_id != &id);
+            }
+        }
 
         self.outgoing
             .entry(edge.source_id.clone())
@@ -458,6 +479,38 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn test_add_node_replaces_secondary_indexes() {
+        let mut store = GraphStore::new();
+        store.add_node(make_node("n1", "old", NodeLabel::Function, "old.ts"));
+        store.add_node(make_node("n1", "new", NodeLabel::Class, "new.ts"));
+
+        assert!(store.nodes_by_name("old").is_empty());
+        assert!(store.nodes_in_file("old.ts").is_empty());
+        assert!(store.nodes_by_label(NodeLabel::Function).is_empty());
+        assert_eq!(store.nodes_by_name("new").len(), 1);
+        assert_eq!(store.nodes_in_file("new.ts").len(), 1);
+        assert_eq!(store.nodes_by_label(NodeLabel::Class).len(), 1);
+    }
+
+    #[test]
+    fn test_add_edge_replaces_adjacency_indexes() {
+        let mut store = GraphStore::new();
+        store.add_node(make_node("a", "a", NodeLabel::Function, "a.ts"));
+        store.add_node(make_node("b", "b", NodeLabel::Function, "b.ts"));
+        store.add_node(make_node("c", "c", NodeLabel::Function, "c.ts"));
+        let mut edge = GraphEdge::new("a", "b", RelationType::Calls, 1.0, "first");
+        edge.id = "edge1".into();
+        store.add_edge(edge);
+        let mut replacement = GraphEdge::new("a", "c", RelationType::Calls, 1.0, "second");
+        replacement.id = "edge1".into();
+        store.add_edge(replacement);
+
+        assert!(store.incoming_edges("b", None).is_empty());
+        assert_eq!(store.incoming_edges("c", None).len(), 1);
+        assert_eq!(store.outgoing_edges("a", None).len(), 1);
     }
 
     #[test]

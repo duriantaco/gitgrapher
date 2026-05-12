@@ -13,7 +13,7 @@ GitGrapher indexes a repository into a persistent knowledge graph so you can sea
 - **Incremental by default**: unchanged files are skipped instead of re-indexing the whole repo.
 - **Local and portable**: graph data lives in `.gitgrapher/` inside the repository.
 - **Permissive license**: MIT, including commercial use.
-- **Useful today**: CLI search, context, impact, symbol listing, 3D graph export, and diff graphs.
+- **Useful today**: CLI search, context, impact, symbol listing, MCP tools, 3D graph export, and diff graphs.
 
 ## Install
 
@@ -41,6 +41,12 @@ gitgrapher query "UserService" -p /path/to/repo
 gitgrapher context handleLogin -p /path/to/repo
 gitgrapher impact UserService -d up -p /path/to/repo
 gitgrapher symbols -l class -p /path/to/repo
+
+# Benchmark cold, no-change, and one-file incremental indexing
+gitgrapher benchmark --format json /path/to/repo
+
+# Expose the graph to AI coding agents over MCP
+gitgrapher mcp
 
 # Visualize in 3D
 gitgrapher serve -p /path/to/repo
@@ -91,6 +97,8 @@ More languages are tracked in [ROADMAP.md](ROADMAP.md).
 | `impact <symbol>` | Traverse upstream or downstream blast radius |
 | `symbols [-l type]` | List symbols, optionally filtered by type |
 | `status [path]` | Show index stats |
+| `benchmark [path]` | Measure cold, no-change, and one-file incremental indexing |
+| `mcp` | Start a stdio MCP server for AI coding agents |
 | `list` | List indexed repositories |
 | `serve [-P port]` | Start a local 3D graph viewer |
 | `export [-f format]` | Export graph as HTML, JSON, or DOT |
@@ -121,7 +129,13 @@ Core design choices:
 
 ## AI Agent Integrations
 
-MCP support is planned but not shipped in the current CLI. The current release focuses on the local graph engine, CLI workflows, and graph/diff visualization. See [ROADMAP.md](ROADMAP.md) for the MCP plan.
+GitGrapher ships a stdio MCP server:
+
+```bash
+gitgrapher mcp
+```
+
+The server exposes `query`, `context`, `impact`, and `list_repos` tools, plus JSON resources for indexed repositories and graph data. Point Claude Code, Cursor, or another MCP client at the `gitgrapher mcp` command after indexing a repository with `gitgrapher analyze`.
 
 ## Development
 
@@ -132,6 +146,7 @@ cargo test --workspace
 ```
 
 Release and packaging notes are in [docs/releasing.md](docs/releasing.md).
+Scaling notes and large-fixture benchmark instructions are in [docs/scaling.md](docs/scaling.md).
 
 ## Contributing
 
