@@ -10,6 +10,13 @@ cargo build --release --bin gitgrapher
 target/release/gitgrapher benchmark --format json /tmp/gitgrapher-50k
 ```
 
+The committed benchmark snapshot used by the README is stored in `benchmarks/gitgrapher-50k-macos-aarch64.json`. Refresh it with:
+
+```bash
+scripts/benchmark_50k.sh benchmarks/gitgrapher-50k-macos-aarch64.json
+python3 scripts/update_benchmark_docs.py
+```
+
 ## Large Repository Behavior
 
 - Repository walking is deterministic and skips dependency/build/cache folders by default.

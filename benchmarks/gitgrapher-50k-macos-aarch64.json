@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "generated_at_unix": 1778595108,
+  "gitgrapher_version": "0.1.0",
+  "machine": {
+    "os": "macos",
+    "arch": "aarch64",
+    "logical_cpus": 8,
+    "worker_threads": 7,
+    "rustc_version": "rustc 1.86.0 (05f9846f8 2025-03-31)",
+    "peak_rss_source": "getrusage(RUSAGE_SELF).ru_maxrss"
+  },
+  "repository": {
+    "path": "/private/tmp/gitgrapher-50k",
+    "git_commit": "bea1c30d45a028b4c3e000b9591b513084b4dbde"
+  },
+  "sample_file": "src/module_0001.ts",
+  "runs": [
+    {
+      "name": "cold",
+      "duration_ms": 4541.403875,
+      "files_scanned": 500,
+      "total_nodes": 50502,
+      "total_edges": 50001,
+      "graph_size_bytes": 40296231,
+      "process_peak_rss_bytes": 395280384,
+      "node_counts_by_label": {
+        "File": 500,
+        "Folder": 1,
+        "Function": 50000,
+        "Project": 1
+      },
+      "edge_counts_by_type": {
+        "CONTAINS": 50001
+      }
+    },
+    {
+      "name": "no_change",
+      "duration_ms": 227.39483299999998,
+      "files_scanned": 0,
+      "total_nodes": 50502,
+      "total_edges": 50001,
+      "graph_size_bytes": 40296231,
+      "process_peak_rss_bytes": 395280384,
+      "node_counts_by_label": {
+        "File": 500,
+        "Folder": 1,
+        "Function": 50000,
+        "Project": 1
+      },
+      "edge_counts_by_type": {
+        "CONTAINS": 50001
+      }
+    },
+    {
+      "name": "one_file_incremental",
+      "duration_ms": 484.604791,
+      "files_scanned": 1,
+      "total_nodes": 50502,
+      "total_edges": 50001,
+      "graph_size_bytes": 40296231,
+      "process_peak_rss_bytes": 395280384,
+      "node_counts_by_label": {
+        "File": 500,
+        "Folder": 1,
+        "Function": 50000,
+        "Project": 1
+      },
+      "edge_counts_by_type": {
+        "CONTAINS": 50001
+      }
+    }
+  ]
+}

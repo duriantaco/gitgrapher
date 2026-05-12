@@ -24,5 +24,6 @@ This roadmap is intentionally focused on adoption blockers and the core engine w
 - [x] MCP over stdio with tools for `query`, `context`, `impact`, `list_repos`, and graph resources.
 - [x] Benchmark command with machine-readable JSON output.
 - [x] Published 50,000-function synthetic benchmark in `docs/benchmark.md`.
+- [x] Generated README benchmark numbers from a committed JSON benchmark snapshot.
 - [x] Tag-driven release workflow for Linux, macOS, and Windows archives.
 - [x] Interactive 3D graph export and local viewer.

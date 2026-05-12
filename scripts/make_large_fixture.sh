@@ -35,5 +35,16 @@ for i in $(seq 1 "$files"); do
   } > "$file"
 done
 
+if command -v git >/dev/null 2>&1; then
+  git -C "$out" init -q
+  git -C "$out" add package.json src
+  GIT_AUTHOR_DATE="2026-01-01T00:00:00Z" \
+    GIT_COMMITTER_DATE="2026-01-01T00:00:00Z" \
+    git -C "$out" \
+      -c user.name="GitGrapher Benchmark" \
+      -c user.email="benchmark@gitgrapher.local" \
+      commit -qm "Generate large TypeScript benchmark fixture"
+fi
+
 total=$((files * functions_per_file))
 echo "created $out with $files files and $total exported functions"

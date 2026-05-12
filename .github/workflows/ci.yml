@@ -30,3 +30,6 @@ jobs:
 
       - name: Test
         run: cargo test --workspace
+
+      - name: Benchmark docs
+        run: python3 scripts/update_benchmark_docs.py --check

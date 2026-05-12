@@ -2,85 +2,126 @@
 
 The README performance table should stay reproducible. Use this file to record the repository, commit, machine, command, and environment used for each published benchmark.
 
-## Current Published Result
-
-Benchmark target: 1,555-file TypeScript codebase.
-
-| Metric | GitGrapher | GitNexus (TypeScript) |
-|--------|------------|----------------------|
-| Full index | ~6s | ~45s |
-| Incremental, 1 file changed | ~1.8s | ~45s |
-| No changes | ~0.7s | ~45s |
-| Memory | ~200MB | 2-4GB |
-| Max file size | 32MB | 512KB |
-
+<!-- benchmark-detail:start -->
 ## Large Synthetic Fixture
 
-Generated with:
+Generated from [benchmarks/gitgrapher-50k-macos-aarch64.json](../benchmarks/gitgrapher-50k-macos-aarch64.json) with `scripts/update_benchmark_docs.py`.
+
+Fixture:
+
+- Path: `/private/tmp/gitgrapher-50k`
+- Files: 500 TypeScript files
+- Functions: 50,000 exported functions
+- Generator: `scripts/make_large_fixture.sh /private/tmp/gitgrapher-50k 500 100`
+
+Commands:
 
 ```bash
-scripts/make_large_fixture.sh /private/tmp/gitgrapher-50k 500 100
-cargo build --release --bin gitgrapher
-target/release/gitgrapher benchmark --format json /private/tmp/gitgrapher-50k
+scripts/benchmark_50k.sh benchmarks/gitgrapher-50k-macos-aarch64.json
+python3 scripts/update_benchmark_docs.py
 ```
+
+The helper builds the current release binary and runs `target/release/gitgrapher benchmark --format json /private/tmp/gitgrapher-50k`.
 
 Environment:
 
-- Date: 2026-05-12
-- OS/arch: macOS aarch64
-- Worker threads: 7
-- Fixture: 500 TypeScript files, 50,000 exported functions
+| Field | Value |
+|-------|-------|
+| Recorded at | 2026-05-12 14:11:48Z |
+| OS/arch | macos aarch64 |
+| Logical CPUs | 8 |
+| Worker threads | 7 |
+| Rust | rustc 1.86.0 (05f9846f8 2025-03-31) |
+| GitGrapher | 0.1.0 |
+| Repo commit | bea1c30d45a028b4c3e000b9591b513084b4dbde |
 
 Result:
 
 | Run | Time | Files scanned | Nodes | Edges | Graph size | Peak RSS |
-|-----|------|---------------|-------|-------|------------|----------|
-| Cold | 3.04s | 500 | 50,502 | 50,001 | 40.3MB | 331.8MB |
-| No-change incremental | 0.17s | 0 | 50,502 | 50,001 | 40.3MB | 331.8MB |
-| One-file incremental | 0.34s | 1 | 50,502 | 50,001 | 40.3MB | 345.4MB |
+|-----|-----:|--------------:|------:|------:|-----------:|---------:|
+| Cold | 4.54s | 500 | 50,502 | 50,001 | 40.3 MB | 395.3 MB |
+| No-change incremental | 0.23s | 0 | 50,502 | 50,001 | 40.3 MB | 395.3 MB |
+| One-file incremental | 0.48s | 1 | 50,502 | 50,001 | 40.3 MB | 395.3 MB |
 
-Raw JSON:
+Raw JSON command output:
 
 ```json
 {
-  "repo": "/private/tmp/gitgrapher-50k",
-  "git_commit": null,
+  "schema_version": 1,
+  "generated_at_unix": 1778595108,
   "gitgrapher_version": "0.1.0",
-  "os": "macos",
-  "arch": "aarch64",
-  "worker_threads": 7,
+  "machine": {
+    "os": "macos",
+    "arch": "aarch64",
+    "logical_cpus": 8,
+    "worker_threads": 7,
+    "rustc_version": "rustc 1.86.0 (05f9846f8 2025-03-31)",
+    "peak_rss_source": "getrusage(RUSAGE_SELF).ru_maxrss"
+  },
+  "repository": {
+    "path": "/private/tmp/gitgrapher-50k",
+    "git_commit": "bea1c30d45a028b4c3e000b9591b513084b4dbde"
+  },
   "sample_file": "src/module_0001.ts",
   "runs": [
     {
       "name": "cold",
-      "duration_ms": 3035.227125,
+      "duration_ms": 4541.403875,
       "files_scanned": 500,
       "total_nodes": 50502,
       "total_edges": 50001,
       "graph_size_bytes": 40296231,
-      "process_peak_rss_bytes": 331825152
+      "process_peak_rss_bytes": 395280384,
+      "node_counts_by_label": {
+        "File": 500,
+        "Folder": 1,
+        "Function": 50000,
+        "Project": 1
+      },
+      "edge_counts_by_type": {
+        "CONTAINS": 50001
+      }
     },
     {
       "name": "no_change",
-      "duration_ms": 170.791125,
+      "duration_ms": 227.39483299999998,
       "files_scanned": 0,
       "total_nodes": 50502,
       "total_edges": 50001,
       "graph_size_bytes": 40296231,
-      "process_peak_rss_bytes": 331825152
+      "process_peak_rss_bytes": 395280384,
+      "node_counts_by_label": {
+        "File": 500,
+        "Folder": 1,
+        "Function": 50000,
+        "Project": 1
+      },
+      "edge_counts_by_type": {
+        "CONTAINS": 50001
+      }
     },
     {
       "name": "one_file_incremental",
-      "duration_ms": 337.827916,
+      "duration_ms": 484.604791,
       "files_scanned": 1,
       "total_nodes": 50502,
       "total_edges": 50001,
       "graph_size_bytes": 40296231,
-      "process_peak_rss_bytes": 345391104
+      "process_peak_rss_bytes": 395280384,
+      "node_counts_by_label": {
+        "File": 500,
+        "Folder": 1,
+        "Function": 50000,
+        "Project": 1
+      },
+      "edge_counts_by_type": {
+        "CONTAINS": 50001
+      }
     }
   ]
 }
 ```
+<!-- benchmark-detail:end -->
 
 ## GitGrapher Commands
 
@@ -95,6 +136,7 @@ Or run the helper:
 ```bash
 scripts/benchmark.sh /path/to/repo
 GITGRAPHER_BENCHMARK_FORMAT=json scripts/benchmark.sh /path/to/repo
+scripts/benchmark_50k.sh benchmarks/gitgrapher-50k-macos-aarch64.json
 ```
 
 Or use the built-in benchmark command, which temporarily backs up any existing `.gitgrapher` index, runs cold/no-change/one-file incremental indexing, restores the touched source file, and restores the previous index:
