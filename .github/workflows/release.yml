@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build ${{ matrix.name }}
@@ -18,15 +22,23 @@ jobs:
         include:
           - name: linux-x86_64
             os: ubuntu-latest
-            archive: tar.gz
+            target: x86_64-unknown-linux-gnu
+            ext: tar.gz
+            binary: gitgrapher
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            ext: tar.gz
             binary: gitgrapher
           - name: macos-aarch64
             os: macos-14
-            archive: tar.gz
+            target: aarch64-apple-darwin
+            ext: tar.gz
             binary: gitgrapher
           - name: windows-x86_64
             os: windows-latest
-            archive: zip
+            target: x86_64-pc-windows-msvc
+            ext: zip
             binary: gitgrapher.exe
 
     steps:
@@ -35,35 +47,44 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release --bin gitgrapher
+        run: cargo build --release --locked --bin gitgrapher --target ${{ matrix.target }}
+
+      - name: Smoke test
+        shell: bash
+        run: '"target/${{ matrix.target }}/release/${{ matrix.binary }}" --version'
 
       - name: Prepare archive
         shell: bash
         run: |
-          mkdir -p dist
-          cp "target/release/${{ matrix.binary }}" "dist/${{ matrix.binary }}"
-          cp README.md LICENSE ROADMAP.md dist/
+          archive_dir="gitgrapher-${{ github.ref_name }}-${{ matrix.name }}"
+          mkdir -p "$archive_dir/docs"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$archive_dir/${{ matrix.binary }}"
+          cp README.md LICENSE ROADMAP.md "$archive_dir/"
+          cp docs/benchmark.md docs/releasing.md docs/scaling.md "$archive_dir/docs/"
 
       - name: Create tar archive
-        if: matrix.archive == 'tar.gz'
+        if: matrix.ext == 'tar.gz'
         shell: bash
-        run: tar -czf "gitgrapher-${{ github.ref_name }}-${{ matrix.name }}.tar.gz" -C dist .
+        run: tar -czf "gitgrapher-${{ github.ref_name }}-${{ matrix.name }}.tar.gz" "gitgrapher-${{ github.ref_name }}-${{ matrix.name }}"
 
       - name: Create zip archive
-        if: matrix.archive == 'zip'
+        if: matrix.ext == 'zip'
         shell: pwsh
-        run: Compress-Archive -Path dist/* -DestinationPath "gitgrapher-${{ github.ref_name }}-${{ matrix.name }}.zip"
+        run: Compress-Archive -Path "gitgrapher-${{ github.ref_name }}-${{ matrix.name }}/*" -DestinationPath "gitgrapher-${{ github.ref_name }}-${{ matrix.name }}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: gitgrapher-${{ matrix.name }}
-          path: gitgrapher-${{ github.ref_name }}-${{ matrix.name }}.*
+          path: gitgrapher-${{ github.ref_name }}-${{ matrix.name }}.${{ matrix.ext }}
+          if-no-files-found: error
 
   publish:
     name: Publish GitHub Release
@@ -75,6 +96,12 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd artifacts
+          sha256sum gitgrapher-* > SHA256SUMS
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
