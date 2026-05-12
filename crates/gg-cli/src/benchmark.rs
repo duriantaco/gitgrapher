@@ -2,8 +2,9 @@ use gg_core::config::Config;
 use gg_core::types::NodeLabel;
 use gg_graph::GraphStore;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 const DATA_DIR: &str = ".gitgrapher";
 
@@ -21,6 +22,7 @@ pub fn cmd_benchmark(path: &Path, format: &str, sample_file: Option<&Path>) -> a
 
 fn run_benchmark(path: &Path, sample_file: Option<&Path>) -> anyhow::Result<BenchmarkReport> {
     let repo = std::fs::canonicalize(path)?;
+    let config = Config::from_env();
     let _guard = IndexRestoreGuard::prepare(&repo)?;
 
     let cold = run_analyze(&repo, "cold")?;
@@ -32,12 +34,23 @@ fn run_benchmark(path: &Path, sample_file: Option<&Path>) -> anyhow::Result<Benc
     source_guard.restore();
 
     Ok(BenchmarkReport {
-        repo: repo.to_string_lossy().to_string(),
-        git_commit: git_output(&repo, &["rev-parse", "HEAD"]),
+        schema_version: 1,
+        generated_at_unix: unix_timestamp(),
         gitgrapher_version: env!("CARGO_PKG_VERSION"),
-        os: std::env::consts::OS,
-        arch: std::env::consts::ARCH,
-        worker_threads: Config::from_env().worker_threads,
+        machine: MachineInfo {
+            os: std::env::consts::OS,
+            arch: std::env::consts::ARCH,
+            logical_cpus: std::thread::available_parallelism()
+                .ok()
+                .map(|count| count.get()),
+            worker_threads: config.worker_threads,
+            rustc_version: command_output("rustc", &["--version"]),
+            peak_rss_source: peak_rss_source(),
+        },
+        repository: RepositoryInfo {
+            path: repo.to_string_lossy().to_string(),
+            git_commit: git_output(&repo, &["rev-parse", "HEAD"]),
+        },
         sample_file: sample
             .strip_prefix(&repo)
             .unwrap_or(sample.as_path())
@@ -63,7 +76,25 @@ fn run_analyze(repo: &Path, name: &'static str) -> anyhow::Result<BenchmarkRun> 
         total_edges: result.total_edges,
         graph_size_bytes,
         process_peak_rss_bytes: peak_rss_bytes(),
+        node_counts_by_label: node_counts_by_label(&result.store),
+        edge_counts_by_type: edge_counts_by_type(&result.store),
     })
+}
+
+fn node_counts_by_label(store: &GraphStore) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for node in store.nodes() {
+        *counts.entry(node.label.to_string()).or_insert(0) += 1;
+    }
+    counts
+}
+
+fn edge_counts_by_type(store: &GraphStore) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for edge in store.edges() {
+        *counts.entry(edge.rel_type.to_string()).or_insert(0) += 1;
+    }
+    counts
 }
 
 fn choose_sample_file(repo: &Path, sample_file: Option<&Path>) -> anyhow::Result<PathBuf> {
@@ -127,11 +158,15 @@ fn mutation_marker(path: &Path) -> Option<&'static str> {
 fn print_text_report(report: &BenchmarkReport) {
     println!();
     println!("  GitGrapher Benchmark");
-    println!("  Repository: {}", report.repo);
-    if let Some(commit) = &report.git_commit {
+    println!("  Repository: {}", report.repository.path);
+    if let Some(commit) = &report.repository.git_commit {
         println!("  Commit: {commit}");
     }
-    println!("  Platform: {} {}", report.os, report.arch);
+    println!("  Platform: {} {}", report.machine.os, report.machine.arch);
+    if let Some(logical_cpus) = report.machine.logical_cpus {
+        println!("  Logical CPUs: {logical_cpus}");
+    }
+    println!("  Worker threads: {}", report.machine.worker_threads);
     println!("  Sample file: {}", report.sample_file);
     println!();
     for run in &report.runs {
@@ -141,7 +176,10 @@ fn print_text_report(report: &BenchmarkReport) {
         );
     }
     println!();
-    println!("  JSON: gitgrapher benchmark --format json {}", report.repo);
+    println!(
+        "  JSON: gitgrapher benchmark --format json {}",
+        report.repository.path
+    );
     println!("  Existing .gitgrapher index was restored after the benchmark.");
     println!();
 }
@@ -158,6 +196,25 @@ fn git_output(repo: &Path, args: &[&str]) -> Option<String> {
     }
     let text = String::from_utf8(output.stdout).ok()?;
     Some(text.trim().to_string()).filter(|text| !text.is_empty())
+}
+
+fn command_output(command: &str, args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new(command)
+        .args(args)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8(output.stdout).ok()?;
+    Some(text.trim().to_string()).filter(|text| !text.is_empty())
+}
+
+fn unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default()
 }
 
 #[cfg(unix)]
@@ -181,6 +238,16 @@ fn peak_rss_bytes() -> Option<u64> {
 
 #[cfg(not(unix))]
 fn peak_rss_bytes() -> Option<u64> {
+    None
+}
+
+#[cfg(unix)]
+fn peak_rss_source() -> Option<&'static str> {
+    Some("getrusage(RUSAGE_SELF).ru_maxrss")
+}
+
+#[cfg(not(unix))]
+fn peak_rss_source() -> Option<&'static str> {
     None
 }
 
@@ -230,14 +297,29 @@ impl Drop for IndexRestoreGuard {
 
 #[derive(Debug, Serialize)]
 struct BenchmarkReport {
-    repo: String,
-    git_commit: Option<String>,
+    schema_version: u32,
+    generated_at_unix: u64,
     gitgrapher_version: &'static str,
-    os: &'static str,
-    arch: &'static str,
-    worker_threads: usize,
+    machine: MachineInfo,
+    repository: RepositoryInfo,
     sample_file: String,
     runs: Vec<BenchmarkRun>,
+}
+
+#[derive(Debug, Serialize)]
+struct MachineInfo {
+    os: &'static str,
+    arch: &'static str,
+    logical_cpus: Option<usize>,
+    worker_threads: usize,
+    rustc_version: Option<String>,
+    peak_rss_source: Option<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+struct RepositoryInfo {
+    path: String,
+    git_commit: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -249,6 +331,8 @@ struct BenchmarkRun {
     total_edges: usize,
     graph_size_bytes: Option<u64>,
     process_peak_rss_bytes: Option<u64>,
+    node_counts_by_label: BTreeMap<String, usize>,
+    edge_counts_by_type: BTreeMap<String, usize>,
 }
 
 struct SourceRestoreGuard {
@@ -295,6 +379,16 @@ mod tests {
 
         let report = run_benchmark(dir.path(), None).unwrap();
 
+        assert_eq!(report.schema_version, 1);
+        assert!(report.generated_at_unix > 0);
+        assert_eq!(
+            report.machine.worker_threads,
+            Config::from_env().worker_threads
+        );
+        assert_eq!(
+            report.runs[0].node_counts_by_label.get("Function"),
+            Some(&1)
+        );
         assert_eq!(report.runs.len(), 3);
         assert_eq!(
             std::fs::read(dir.path().join("app.ts")).unwrap(),

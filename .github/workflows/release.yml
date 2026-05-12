@@ -64,10 +64,11 @@ jobs:
         shell: bash
         run: |
           archive_dir="gitgrapher-${{ github.ref_name }}-${{ matrix.name }}"
-          mkdir -p "$archive_dir/docs"
+          mkdir -p "$archive_dir/docs" "$archive_dir/benchmarks"
           cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "$archive_dir/${{ matrix.binary }}"
           cp README.md LICENSE ROADMAP.md "$archive_dir/"
           cp docs/benchmark.md docs/releasing.md docs/scaling.md "$archive_dir/docs/"
+          cp benchmarks/*.json "$archive_dir/benchmarks/"
 
       - name: Create tar archive
         if: matrix.ext == 'tar.gz'

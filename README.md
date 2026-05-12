@@ -69,17 +69,15 @@ gitgrapher diff --format html -p /path/to/repo
 
 ## Performance
 
-Benchmarked against a 1,555-file TypeScript codebase:
+<!-- benchmark-summary:start -->
+| Benchmark fixture | Cold index | No changes | One-file incremental | Peak RSS |
+|-------------------|-----------:|-----------:|---------------------:|---------:|
+| 50,000 TypeScript functions across 500 files | **4.54s** | **0.23s** | **0.48s** | 395.3 MB |
 
-| Metric | GitGrapher | GitNexus (TypeScript) |
-|--------|------------|----------------------|
-| Full index | **~6s** | ~45s |
-| Incremental (1 file changed) | **~1.8s** | ~45s (no incremental) |
-| No changes | **~0.7s** | ~45s (re-indexes anyway) |
-| Memory | ~200MB | 2-4GB (V8 heap) |
-| Max file size | 32MB | 512KB |
+Generated from [benchmarks/gitgrapher-50k-macos-aarch64.json](benchmarks/gitgrapher-50k-macos-aarch64.json) with `scripts/update_benchmark_docs.py`.
+<!-- benchmark-summary:end -->
 
-See [docs/benchmark.md](docs/benchmark.md) for the benchmark method and commands.
+See [docs/benchmark.md](docs/benchmark.md) for the recorded JSON, fixture details, and reproduction commands.
 
 ## What It Indexes
 
