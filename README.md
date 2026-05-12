@@ -17,6 +17,18 @@ GitGrapher indexes a repository into a persistent knowledge graph so you can sea
 
 ## Install
 
+Download the archive for your platform from the [GitHub releases](https://github.com/duriantaco/gitgrapher/releases), then put the `gitgrapher` binary on your `PATH`.
+
+On macOS or Linux:
+
+```bash
+tar -xzf gitgrapher-vX.Y.Z-<platform>.tar.gz
+install -m 755 gitgrapher-vX.Y.Z-<platform>/gitgrapher /usr/local/bin/gitgrapher
+gitgrapher --version
+```
+
+Or install from source:
+
 ```bash
 cargo install --git https://github.com/duriantaco/gitgrapher gitgrapher
 ```
