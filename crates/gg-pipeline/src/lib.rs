@@ -5,7 +5,7 @@ use gg_core::config::Config;
 use gg_core::error::GgResult;
 use gg_core::types::*;
 use gg_graph::GraphStore;
-use gg_parse::scanner::{scan_repository, SourceFile};
+use gg_parse::scanner::{scan_repository_with_languages, SourceFile};
 use gg_parse::LanguageRegistry;
 use gg_resolve::call_resolver::{build_implementor_map, CallResolver};
 use gg_resolve::heritage_resolver::HeritageResolver;
@@ -67,7 +67,7 @@ pub fn analyze(repo_path: &str) -> GgResult<AnalyzeResult> {
     // -----------------------------------------------------------------------
     // Phase 1: Scan filesystem
     // -----------------------------------------------------------------------
-    let files = scan_repository(root, &config);
+    let files = scan_repository_with_languages(root, &config, &registry.supported_languages());
     info!("Found {} source files", files.len());
 
     if files.is_empty() {
@@ -203,14 +203,17 @@ pub fn analyze(repo_path: &str) -> GgResult<AnalyzeResult> {
         for &idx in &changeset.modified {
             s.remove_file(&files[idx].relative_path);
         }
-        // Add structure for new files only
-        let new_files: Vec<_> = changeset
+        // Add structure for files that need to be rebuilt.
+        // Modified files had their File node removed above, so they need
+        // structure nodes re-added just like newly added files.
+        let changed_files: Vec<_> = changeset
             .added
             .iter()
+            .chain(changeset.modified.iter())
             .map(|&i| &files[i])
             .cloned()
             .collect();
-        build_structure(&new_files, root, &mut s);
+        build_structure(&changed_files, root, &mut s);
         s
     } else {
         let mut s = GraphStore::new();
@@ -744,6 +747,48 @@ mod tests {
         assert!(
             result.resolution_stats.import_edges_resolved > 0,
             "Should resolve barrel exports"
+        );
+    }
+
+    #[test]
+    fn test_incremental_modified_file_rebuilds_file_node() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        fs::create_dir(&src).unwrap();
+        let app = src.join("app.ts");
+        fs::write(
+            &app,
+            r#"
+            export function handleLogin(): boolean {
+                return true;
+            }
+            "#,
+        )
+        .unwrap();
+
+        let first = analyze(dir.path().to_str().unwrap()).unwrap();
+        fs::write(
+            &app,
+            r#"
+            export function handleLogin(): boolean {
+                return false;
+            }
+            "#,
+        )
+        .unwrap();
+        let second = analyze(dir.path().to_str().unwrap()).unwrap();
+
+        assert_eq!(second.files_scanned, 1);
+        assert_eq!(second.total_nodes, first.total_nodes);
+        assert_eq!(second.total_edges, first.total_edges);
+        assert_eq!(second.store.nodes_by_label(NodeLabel::File).len(), 1);
+        assert_eq!(second.store.nodes_by_name("handleLogin").len(), 1);
+        assert_eq!(
+            second
+                .store
+                .outgoing_edges("file::src/app.ts", Some(RelationType::Contains))
+                .len(),
+            1
         );
     }
 }

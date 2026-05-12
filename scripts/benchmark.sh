@@ -17,10 +17,5 @@ echo "GitGrapher: $("$bin" --version)"
 echo "Repository: $repo"
 echo
 
-echo "Full index"
-rm -rf "$repo/.gitgrapher"
-/usr/bin/time -p "$bin" analyze "$repo"
-
-echo
-echo "No-change incremental"
-/usr/bin/time -p "$bin" analyze "$repo"
+format="${GITGRAPHER_BENCHMARK_FORMAT:-text}"
+"$bin" benchmark --format "$format" "$repo"
