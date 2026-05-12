@@ -148,7 +148,7 @@ fn append_benchmark_marker(path: &Path) -> anyhow::Result<()> {
 fn mutation_marker(path: &Path) -> Option<&'static str> {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some("py" | "pyi") => Some("\n# gitgrapher benchmark mutation\n"),
-        Some("ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs") => {
+        Some("ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs" | "go" | "rs") => {
             Some("\n// gitgrapher benchmark mutation\n")
         }
         _ => None,

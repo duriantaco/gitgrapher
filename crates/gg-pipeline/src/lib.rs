@@ -751,6 +751,135 @@ mod tests {
     }
 
     #[test]
+    fn test_go_pipeline_extracts_relationships() {
+        let dir = tempfile::tempdir().unwrap();
+
+        fs::write(
+            dir.path().join("service.go"),
+            r#"
+            package service
+
+            type Embedded struct {}
+
+            type User struct {
+                Embedded
+            }
+
+            type Repository interface {
+                Save(User) error
+            }
+
+            func NewUser() User {
+                return User{}
+            }
+            "#,
+        )
+        .unwrap();
+
+        fs::write(
+            dir.path().join("main.go"),
+            r#"
+            package main
+
+            import "example.com/project/service"
+
+            func main() {
+                user := service.NewUser()
+                _ = user
+            }
+            "#,
+        )
+        .unwrap();
+
+        let result = analyze(dir.path().to_str().unwrap()).unwrap();
+        assert_eq!(result.files_scanned, 2);
+        assert!(result.languages_detected.contains(&Language::Go));
+        assert!(!result.store.nodes_by_label(NodeLabel::Struct).is_empty());
+        assert!(!result.store.nodes_by_label(NodeLabel::Interface).is_empty());
+        assert!(
+            result.resolution_stats.import_edges_resolved > 0,
+            "Should resolve Go package imports"
+        );
+        assert!(
+            result.resolution_stats.call_edges_resolved > 0,
+            "Should resolve Go calls"
+        );
+        assert!(
+            result.resolution_stats.heritage_edges_resolved > 0,
+            "Should resolve Go embedded-type heritage"
+        );
+    }
+
+    #[test]
+    fn test_rust_pipeline_extracts_relationships() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        fs::create_dir(&src).unwrap();
+
+        fs::write(
+            src.join("services.rs"),
+            r#"
+            pub trait Repository {
+                fn save(&self, user: User);
+            }
+
+            pub struct User {
+                name: String,
+            }
+
+            impl Repository for User {
+                fn save(&self, user: User) {
+                    println!("{}", user.name());
+                }
+            }
+
+            impl User {
+                pub fn new(name: String) -> Self {
+                    Self { name }
+                }
+
+                pub fn name(&self) -> &str {
+                    &self.name
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        fs::write(
+            src.join("main.rs"),
+            r#"
+            use crate::services::User;
+
+            fn main() {
+                let user = User::new("Ada".into());
+                println!("{}", user.name());
+            }
+            "#,
+        )
+        .unwrap();
+
+        let result = analyze(dir.path().to_str().unwrap()).unwrap();
+        assert_eq!(result.files_scanned, 2);
+        assert!(result.languages_detected.contains(&Language::Rust));
+        assert!(!result.store.nodes_by_label(NodeLabel::Struct).is_empty());
+        assert!(!result.store.nodes_by_label(NodeLabel::Trait).is_empty());
+        assert!(!result.store.nodes_by_label(NodeLabel::Impl).is_empty());
+        assert!(
+            result.resolution_stats.import_edges_resolved > 0,
+            "Should resolve Rust use declarations"
+        );
+        assert!(
+            result.resolution_stats.call_edges_resolved > 0,
+            "Should resolve Rust calls"
+        );
+        assert!(
+            result.resolution_stats.heritage_edges_resolved > 0,
+            "Should resolve Rust impl heritage"
+        );
+    }
+
+    #[test]
     fn test_incremental_modified_file_rebuilds_file_node() {
         let dir = tempfile::tempdir().unwrap();
         let src = dir.path().join("src");

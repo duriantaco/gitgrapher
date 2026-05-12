@@ -27,5 +27,11 @@ version = "0.23"
 [dependencies.tree-sitter-python]
 version = "0.23"
 
+[dependencies.tree-sitter-go]
+version = "=0.23.4"
+
+[dependencies.tree-sitter-rust]
+version = "=0.23.2"
+
 [dev-dependencies]
 tempfile = "3"
